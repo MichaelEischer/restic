@@ -696,7 +696,7 @@ func (c *Checker) GetPacks() restic.IDSet {
 }
 
 // checkPack reads a pack and checks the integrity of all blobs.
-func checkPack(ctx context.Context, r restic.Repository, id restic.ID) error {
+func checkPack(ctx context.Context, r restic.Repository, id restic.ID, recursed bool) error {
 	debug.Log("checking pack %v", id)
 	h := restic.Handle{Type: restic.DataFile, Name: id.String()}
 
@@ -750,6 +750,17 @@ func checkPack(ctx context.Context, r restic.Repository, id restic.ID) error {
 		if err != nil {
 			debug.Log("  error decrypting blob %v: %v", blob.ID, err)
 			errs = append(errs, errors.Errorf("blob %v: %v", i, err))
+
+			if !recursed {
+				err2 := checkPack(ctx, r, id, true)
+				if err2 != nil {
+					debug.Log("  error decrypting blob %v again: %v", blob.ID, err2)
+					errs = append(errs, errors.Errorf("blob-retry %v: %v", i, err2))
+				} else {
+					errs = append(errs, errors.Errorf("blob ok on retry O.o %v: %v", i, err2))
+				}
+			}
+
 			continue
 		}
 
@@ -799,7 +810,7 @@ func (c *Checker) ReadPacks(ctx context.Context, packs restic.IDSet, p *restic.P
 					}
 				}
 
-				err := checkPack(ctx, c.repo, id)
+				err := checkPack(ctx, c.repo, id, false)
 				p.Report(restic.Stat{Blobs: 1})
 				if err == nil {
 					continue
