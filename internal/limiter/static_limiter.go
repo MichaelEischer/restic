@@ -46,6 +46,10 @@ func (l staticLimiter) Downstream(r io.Reader) io.Reader {
 	return l.limitReader(r, l.downstream)
 }
 
+func (l staticLimiter) DownstreamWriter(w io.Writer) io.Writer {
+	return l.limitWriter(w, l.downstream)
+}
+
 type roundTripper func(*http.Request) (*http.Response, error)
 
 func (rt roundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
