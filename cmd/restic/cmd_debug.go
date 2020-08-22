@@ -33,6 +33,27 @@ var cmdDebug = &cobra.Command{
 	Short: "Debug commands",
 }
 
+const changeIDSafetyToken = "i-understand-that-this-could-break-my-repository-and-i-have-created-a-backup-of-the-config-file"
+
+var cmdDebugChangeID = &cobra.Command{
+	Use:   "changeID [" + changeIDSafetyToken + " oldRepoID]",
+	Short: "Change repository id",
+	Long: `
+The "changeID" command will rewrite the config file of a repository and change its ID. Use with
+caution! Always create a backup of the 'config' file of a repository first! If this operation fails,
+the repository _WILL BECOME UNREADABLE_! To repair the damage, restore the old config file.
+
+EXIT STATUS
+===========
+
+Exit status is 0 if the command was successful, and non-zero if there was any error.
+`,
+	DisableAutoGenTag: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runDebugChangeID(cmd.Context(), globalOptions, args)
+	},
+}
+
 var cmdDebugDump = &cobra.Command{
 	Use:   "dump [indexes|snapshots|all|packs]",
 	Short: "Dump data structures",
@@ -65,12 +86,57 @@ var debugExamineOpts DebugExamineOptions
 
 func init() {
 	cmdRoot.AddCommand(cmdDebug)
+	cmdDebug.AddCommand(cmdDebugChangeID)
 	cmdDebug.AddCommand(cmdDebugDump)
 	cmdDebug.AddCommand(cmdDebugExamine)
 	cmdDebugExamine.Flags().BoolVar(&debugExamineOpts.ExtractPack, "extract-pack", false, "write blobs to the current directory")
 	cmdDebugExamine.Flags().BoolVar(&debugExamineOpts.ReuploadBlobs, "reupload-blobs", false, "reupload blobs to the repository")
 	cmdDebugExamine.Flags().BoolVar(&debugExamineOpts.TryRepair, "try-repair", false, "try to repair broken blobs with single bit flips")
 	cmdDebugExamine.Flags().BoolVar(&debugExamineOpts.RepairByte, "repair-byte", false, "try to repair broken blobs by trying bytes")
+}
+
+func changeRepoID(r *repository.Repository, expectedRepoID string) error {
+	// ignore cancelation to prevent breaking a repository
+	ctx := context.Background()
+
+	Verbosef("loading config file\n")
+	cfg, err := restic.LoadConfig(ctx, r)
+	if err != nil {
+		return err
+	}
+
+	if expectedRepoID != cfg.ID {
+		return errors.Fatalf("expected repository id %v, found %v, aborting", expectedRepoID, cfg.ID)
+	}
+
+	cfg.ID = restic.NewRandomID().String()
+
+	Verbosef("deleting old config file\n")
+	err = r.RemoveUnpacked(ctx, restic.ConfigFile, restic.ID{})
+	if err != nil {
+		return err
+	}
+
+	Verbosef("storing modified config file\n")
+	err = restic.SaveConfig(ctx, r, cfg)
+	if err == nil {
+		Verbosef("operation succeeded\n")
+	}
+	return err
+}
+
+func runDebugChangeID(ctx context.Context, gopts GlobalOptions, args []string) error {
+	if len(args) != 2 || args[0] != "i-understand-that-this-could-break-my-repository-and-i-have-created-a-backup-of-the-config-file" {
+		return errors.Fatal("warning not acknowledged, aborting")
+	}
+
+	_, repo, unlock, err := openWithExclusiveLock(ctx, gopts, false)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+
+	return changeRepoID(repo, args[1])
 }
 
 func prettyPrintJSON(wr io.Writer, item interface{}) error {
