@@ -21,6 +21,27 @@ var cmdDebug = &cobra.Command{
 	Short: "Debug commands",
 }
 
+const changeIDSafetyToken = "i-understand-that-this-could-break-my-repository-and-i-have-created-a-backup-of-the-config-file"
+
+var cmdDebugChangeID = &cobra.Command{
+	Use:   "changeID [" + changeIDSafetyToken + " oldRepoID]",
+	Short: "Change repository id",
+	Long: `
+The "changeID" command will rewrite the config file of a repository and change its ID. Use with
+caution! Always create a backup of the 'config' file of a repository first! If this operation fails,
+the repository _WILL BECOME UNREADABLE_! To repair the damage, restore the old config file.
+
+EXIT STATUS
+===========
+
+Exit status is 0 if the command was successful, and non-zero if there was any error.
+`,
+	DisableAutoGenTag: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runDebugChangeID(globalOptions, args)
+	},
+}
+
 var cmdDebugDump = &cobra.Command{
 	Use:   "dump [indexes|snapshots|all|packs]",
 	Short: "Dump data structures",
@@ -41,7 +62,57 @@ Exit status is 0 if the command was successful, and non-zero if there was any er
 
 func init() {
 	cmdRoot.AddCommand(cmdDebug)
+	cmdDebug.AddCommand(cmdDebugChangeID)
 	cmdDebug.AddCommand(cmdDebugDump)
+}
+
+func changeRepoID(r *repository.Repository, expectedRepoID string) error {
+	var cfg restic.Config
+	ctx := context.TODO()
+
+	Verbosef("loading config file\n")
+	err := r.LoadJSONUnpacked(ctx, restic.ConfigFile, restic.ID{}, &cfg)
+	if err != nil {
+		return err
+	}
+
+	if expectedRepoID != cfg.ID {
+		return errors.Fatalf("expected repository id %v, found %v, aborting", expectedRepoID, cfg.ID)
+	}
+
+	cfg.ID = restic.NewRandomID().String()
+
+	Verbosef("deleting old config file\n")
+	err = r.Backend().Remove(ctx, restic.Handle{Type: restic.ConfigFile})
+	if err != nil {
+		return err
+	}
+
+	Verbosef("storing modified config file\n")
+	_, err = r.SaveJSONUnpacked(ctx, restic.ConfigFile, cfg)
+	if err == nil {
+		Verbosef("operation succeeded\n")
+	}
+	return err
+}
+
+func runDebugChangeID(gopts GlobalOptions, args []string) error {
+	if len(args) != 2 || args[0] != "i-understand-that-this-could-break-my-repository-and-i-have-created-a-backup-of-the-config-file" {
+		return errors.Fatal("warning not acknowledged, aborting")
+	}
+
+	repo, err := OpenRepository(gopts)
+	if err != nil {
+		return err
+	}
+
+	lock, err := lockRepoExclusive(repo)
+	defer unlockRepo(lock)
+	if err != nil {
+		return err
+	}
+
+	return changeRepoID(repo, args[1])
 }
 
 func prettyPrintJSON(wr io.Writer, item interface{}) error {
