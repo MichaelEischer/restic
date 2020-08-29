@@ -51,6 +51,25 @@ Exit status is 0 if the command was successful, and non-zero if there was any er
 	},
 }
 
+var cmdDebugFakeConfig = &cobra.Command{
+	Use:   "fakeConfig",
+	Short: "Create a 'fake' config for a repository",
+	Long: `
+The "fakeConfig" command will create a fake config file for a repository in case the config file
+is missing. It will only change anything if the supplied encryption key is valid and no config
+file exists. Use with caution!
+
+EXIT STATUS
+===========
+
+Exit status is 0 if the command was successful, and non-zero if there was any error.
+`,
+	DisableAutoGenTag: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runDebugFakeConfig(globalOptions, args)
+	},
+}
+
 var cmdDebugDump = &cobra.Command{
 	Use:   "dump [indexes|snapshots|all|packs]",
 	Short: "Dump data structures",
@@ -81,6 +100,7 @@ func init() {
 	cmdDebugExamine.Flags().BoolVar(&extractPack, "extract-pack", false, "write blobs to the current directory")
 	cmdDebugExamine.Flags().BoolVar(&tryRepair, "try-repair", false, "try to repair broken blobs with single bit flips")
 	cmdDebugExamine.Flags().BoolVar(&repairByte, "repair-byte", false, "try to repair broken blobs by trying bytes")
+	cmdDebug.AddCommand(cmdDebugFakeConfig)
 }
 
 func changeRepoID(r *repository.Repository, expectedRepoID string) error {
@@ -130,6 +150,54 @@ func runDebugChangeID(gopts GlobalOptions, args []string) error {
 	}
 
 	return changeRepoID(repo, args[1])
+}
+
+func runDebugFakeConfig(gopts GlobalOptions, args []string) error {
+	if len(args) != 0 {
+		return errors.Fatal("unexpected parameters, aborting")
+	}
+	if gopts.Repo == "" {
+		return errors.Fatal("Please specify repository location (-r)")
+	}
+
+	// open the repository
+	be, err := openUnsafe(gopts.Repo, gopts, gopts.extended)
+	if err != nil {
+		return err
+	}
+	be = backend.NewRetryBackend(be, 10, func(msg string, err error, d time.Duration) {
+		Warnf("%v returned error, retrying after %v: %v\n", msg, d, err)
+	})
+	s := repository.New(be)
+
+	// try to find a matching key, but make sure there's no config file
+	gopts.password, err = ReadPassword(gopts, "enter password for repository: ")
+	if err != nil {
+		return err
+	}
+	err = s.SearchKey(gopts.ctx, gopts.password, maxKeys, gopts.KeyHint)
+	if err == nil {
+		return errors.Fatalf("successfully loaded the repository config, will NOT overwrite it")
+		// abort config file is intact
+	}
+	if s.Key() == nil {
+		// Failed to decrypt the key
+		return err
+	}
+
+	// check again
+	if ok, err := s.Backend().Test(gopts.ctx, restic.Handle{Type: restic.ConfigFile}); ok || err != nil {
+		return errors.Fatalf("found an (invalid?) config file in the repository, will NOT overwrite it")
+	}
+
+	// no need for locking as without a config file noone else can open the repository
+	// write a new config file. (Most?) backends will not overwrite files, which provides another layer of protection
+	cfg, err := restic.CreateConfig()
+	if err != nil {
+		return err
+	}
+	_, err = s.SaveJSONUnpacked(gopts.ctx, restic.ConfigFile, cfg)
+	return err
 }
 
 func prettyPrintJSON(wr io.Writer, item interface{}) error {

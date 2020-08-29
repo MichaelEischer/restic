@@ -672,7 +672,7 @@ func parseConfig(loc location.Location, opts options.Options) (interface{}, erro
 }
 
 // Open the backend specified by a location config.
-func open(s string, gopts GlobalOptions, opts options.Options) (restic.Backend, error) {
+func openUnsafe(s string, gopts GlobalOptions, opts options.Options) (restic.Backend, error) {
 	debug.Log("parsing location %v", location.StripPassword(s))
 	loc, err := location.Parse(s)
 	if err != nil {
@@ -738,6 +738,15 @@ func open(s string, gopts GlobalOptions, opts options.Options) (restic.Backend, 
 	if loc.Scheme == "local" || loc.Scheme == "sftp" {
 		// wrap the backend in a LimitBackend so that the throughput is limited
 		be = limiter.LimitBackend(be, lim)
+	}
+	return be, nil
+}
+
+// Open the backend specified by a location config.
+func open(s string, gopts GlobalOptions, opts options.Options) (restic.Backend, error) {
+	be, err := openUnsafe(s, gopts, opts)
+	if err != nil {
+		return nil, err
 	}
 
 	// check if config is there
