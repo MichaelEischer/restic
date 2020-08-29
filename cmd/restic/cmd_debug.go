@@ -13,6 +13,7 @@ import (
 	"os"
 	"runtime"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -20,6 +21,8 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
 
+	"github.com/restic/restic/internal/backend"
+	"github.com/restic/restic/internal/backend/retry"
 	"github.com/restic/restic/internal/crypto"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/repository"
@@ -54,6 +57,25 @@ Exit status is 0 if the command was successful, and non-zero if there was any er
 	},
 }
 
+var cmdDebugFakeConfig = &cobra.Command{
+	Use:   "fakeConfig",
+	Short: "Create a 'fake' config for a repository",
+	Long: `
+The "fakeConfig" command will create a fake config file for a repository in case the config file
+is missing. It will only change anything if the supplied encryption key is valid and no config
+file exists. Use with caution!
+
+EXIT STATUS
+===========
+
+Exit status is 0 if the command was successful, and non-zero if there was any error.
+`,
+	DisableAutoGenTag: true,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runDebugFakeConfig(cmd.Context(), globalOptions, debugFakeConfigOpts, args)
+	},
+}
+
 var cmdDebugDump = &cobra.Command{
 	Use:   "dump [indexes|snapshots|all|packs]",
 	Short: "Dump data structures",
@@ -84,6 +106,12 @@ type DebugExamineOptions struct {
 
 var debugExamineOpts DebugExamineOptions
 
+type DebugFakeConfigOptions struct {
+	RepositoryVersion string
+}
+
+var debugFakeConfigOpts DebugFakeConfigOptions
+
 func init() {
 	cmdRoot.AddCommand(cmdDebug)
 	cmdDebug.AddCommand(cmdDebugChangeID)
@@ -93,11 +121,12 @@ func init() {
 	cmdDebugExamine.Flags().BoolVar(&debugExamineOpts.ReuploadBlobs, "reupload-blobs", false, "reupload blobs to the repository")
 	cmdDebugExamine.Flags().BoolVar(&debugExamineOpts.TryRepair, "try-repair", false, "try to repair broken blobs with single bit flips")
 	cmdDebugExamine.Flags().BoolVar(&debugExamineOpts.RepairByte, "repair-byte", false, "try to repair broken blobs by trying bytes")
+
+	cmdDebug.AddCommand(cmdDebugFakeConfig)
+	cmdDebug.Flags().StringVar(&debugFakeConfigOpts.RepositoryVersion, "repository-version", "stable", "repository format version to use, allowed values are a format version, 'latest' and 'stable'")
 }
 
-func changeRepoID(r *repository.Repository, expectedRepoID string) error {
-	// ignore cancelation to prevent breaking a repository
-	ctx := context.Background()
+func changeRepoID(ctx context.Context, r *repository.Repository, expectedRepoID string) error {
 
 	Verbosef("loading config file\n")
 	cfg, err := restic.LoadConfig(ctx, r)
@@ -111,14 +140,16 @@ func changeRepoID(r *repository.Repository, expectedRepoID string) error {
 
 	cfg.ID = restic.NewRandomID().String()
 
+	// use a separate context to prevent a user from accidentally breaking the repository
+	safeCtx := context.Background()
 	Verbosef("deleting old config file\n")
-	err = r.RemoveUnpacked(ctx, restic.ConfigFile, restic.ID{})
+	err = r.RemoveUnpacked(safeCtx, restic.ConfigFile, restic.ID{})
 	if err != nil {
 		return err
 	}
 
 	Verbosef("storing modified config file\n")
-	err = restic.SaveConfig(ctx, r, cfg)
+	err = restic.SaveConfig(safeCtx, r, cfg)
 	if err == nil {
 		Verbosef("operation succeeded\n")
 	}
@@ -130,13 +161,98 @@ func runDebugChangeID(ctx context.Context, gopts GlobalOptions, args []string) e
 		return errors.Fatal("warning not acknowledged, aborting")
 	}
 
-	_, repo, unlock, err := openWithExclusiveLock(ctx, gopts, false)
+	ctx, repo, unlock, err := openWithExclusiveLock(ctx, gopts, false)
 	if err != nil {
 		return err
 	}
 	defer unlock()
 
-	return changeRepoID(repo, args[1])
+	return changeRepoID(ctx, repo, args[1])
+}
+
+func runDebugFakeConfig(ctx context.Context, gopts GlobalOptions, opts DebugFakeConfigOptions, args []string) error {
+	if len(args) != 0 {
+		return errors.Fatal("unexpected parameters, aborting")
+	}
+	if gopts.Repo == "" {
+		return errors.Fatal("Please specify repository location (-r)")
+	}
+	var version uint
+	if opts.RepositoryVersion == "latest" || opts.RepositoryVersion == "" {
+		version = restic.MaxRepoVersion
+	} else if opts.RepositoryVersion == "stable" {
+		version = restic.StableRepoVersion
+	} else {
+		v, err := strconv.ParseUint(opts.RepositoryVersion, 10, 32)
+		if err != nil {
+			return errors.Fatal("invalid repository version")
+		}
+		version = uint(v)
+	}
+	if version < restic.MinRepoVersion || version > restic.MaxRepoVersion {
+		return errors.Fatalf("only repository versions between %v and %v are allowed", restic.MinRepoVersion, restic.MaxRepoVersion)
+	}
+
+	// open the repository
+	be, err := innerOpen(ctx, gopts.Repo, gopts, gopts.extended, false)
+	if err != nil {
+		return fmt.Errorf("innerOpen: %w", err)
+	}
+
+	report := func(msg string, err error, d time.Duration) {
+		if d >= 0 {
+			Warnf("%v returned error, retrying after %v: %v\n", msg, d, err)
+		} else {
+			Warnf("%v failed: %v\n", msg, err)
+		}
+	}
+	success := func(msg string, retries int) {
+		Warnf("%v operation successful after %d retries\n", msg, retries)
+	}
+	be = retry.New(be, 15*time.Minute, report, success)
+
+	s, err := repository.New(be, repository.Options{
+		Compression: gopts.Compression,
+		PackSize:    gopts.PackSize * 1024 * 1024,
+	})
+	if err != nil {
+		return fmt.Errorf("repository.New: %w", err)
+	}
+
+	// try to find a matching key, but make sure there's no config file
+	gopts.password, err = ReadPassword(ctx, gopts, "enter password for repository: ")
+	if err != nil {
+		return err
+	}
+	err = s.SearchKey(ctx, gopts.password, maxKeys, gopts.KeyHint, true)
+	if err == nil {
+		return errors.Fatalf("successfully loaded the repository config, will NOT overwrite it")
+		// abort config file is intact
+	}
+	if s.Key() == nil {
+		// Failed to decrypt the key
+		return err
+	}
+
+	// check again
+	_, err = be.Stat(ctx, backend.Handle{Type: restic.ConfigFile})
+	if err == nil {
+		return errors.Fatalf("found an (invalid?) config file in the repository, will NOT overwrite it")
+	}
+
+	// no need for locking as without a config file noone else can open the repository
+	// write a new config file. (Most?) backends will not overwrite files, which provides another layer of protection
+	cfg, err := restic.CreateConfig(version)
+	if err != nil {
+		return err
+	}
+	err = restic.SaveConfig(ctx, s, cfg)
+	if err != nil {
+		return err
+	}
+
+	fmt.Println("\nSuccessfully created fake config file.")
+	return nil
 }
 
 func prettyPrintJSON(wr io.Writer, item interface{}) error {

@@ -486,7 +486,7 @@ func OpenRepository(ctx context.Context, opts GlobalOptions) (*repository.Reposi
 			continue
 		}
 
-		err = s.SearchKey(ctx, opts.password, maxKeys, opts.KeyHint)
+		err = s.SearchKey(ctx, opts.password, maxKeys, opts.KeyHint, false)
 		if err != nil && passwordTriesLeft > 1 {
 			opts.password = ""
 			fmt.Fprintf(os.Stderr, "%s. Try again\n", err)

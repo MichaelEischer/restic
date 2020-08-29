@@ -129,7 +129,7 @@ func TestOpenBackend(t testing.TB, be backend.Backend) *Repository {
 	if err != nil {
 		t.Fatal(err)
 	}
-	err = repo.SearchKey(context.TODO(), test.TestPassword, 10, "")
+	err = repo.SearchKey(context.TODO(), test.TestPassword, 10, "", false)
 	if err != nil {
 		t.Fatal(err)
 	}

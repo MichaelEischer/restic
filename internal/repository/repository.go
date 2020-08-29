@@ -728,7 +728,7 @@ func (r *Repository) prepareCache() error {
 
 // SearchKey finds a key with the supplied password, afterwards the config is
 // read and parsed. It tries at most maxKeys key files in the repo.
-func (r *Repository) SearchKey(ctx context.Context, password string, maxKeys int, keyHint string) error {
+func (r *Repository) SearchKey(ctx context.Context, password string, maxKeys int, keyHint string, keepKey bool) error {
 	key, err := SearchKey(ctx, r, password, maxKeys, keyHint)
 	if err != nil {
 		return err
@@ -741,8 +741,10 @@ func (r *Repository) SearchKey(ctx context.Context, password string, maxKeys int
 	r.keyID = key.ID()
 	cfg, err := restic.LoadConfig(ctx, r)
 	if err != nil {
-		r.key = oldKey
-		r.keyID = oldKeyID
+		if !keepKey {
+			r.key = oldKey
+			r.keyID = oldKeyID
+		}
 
 		if err == crypto.ErrUnauthenticated {
 			return fmt.Errorf("config or key %v is damaged: %w", key.ID(), err)

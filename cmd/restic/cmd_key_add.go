@@ -127,7 +127,7 @@ func getNewPassword(ctx context.Context, gopts GlobalOptions, newPasswordFile st
 func switchToNewKeyAndRemoveIfBroken(ctx context.Context, repo *repository.Repository, key *repository.Key, pw string) error {
 	// Verify new key to make sure it really works. A broken key can render the
 	// whole repository inaccessible
-	err := repo.SearchKey(ctx, pw, 0, key.ID().String())
+	err := repo.SearchKey(ctx, pw, 0, key.ID().String(), false)
 	if err != nil {
 		// the key is invalid, try to remove it
 		_ = repository.RemoveKey(ctx, repo, key.ID())
