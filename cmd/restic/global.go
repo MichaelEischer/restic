@@ -571,7 +571,7 @@ func parseConfig(loc location.Location, opts options.Options) (interface{}, erro
 }
 
 // Open the backend specified by a location config.
-func open(ctx context.Context, s string, gopts GlobalOptions, opts options.Options) (backend.Backend, error) {
+func openUnsafe(ctx context.Context, s string, gopts GlobalOptions, opts options.Options) (backend.Backend, error) {
 	debug.Log("parsing location %v", location.StripPassword(gopts.backends, s))
 	loc, err := location.Parse(gopts.backends, s)
 	if err != nil {
@@ -613,6 +613,16 @@ func open(ctx context.Context, s string, gopts GlobalOptions, opts options.Optio
 		if err != nil {
 			return nil, err
 		}
+	}
+
+	return be, nil
+}
+
+// open the backend specified by a location config.
+func open(ctx context.Context, s string, gopts GlobalOptions, opts options.Options) (backend.Backend, error) {
+	be, err := openUnsafe(ctx, s, gopts, opts)
+	if err != nil {
+		return nil, err
 	}
 
 	// check if config is there
