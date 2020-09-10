@@ -26,12 +26,22 @@ Exit status is 0 if the command was successful, and non-zero if there was any er
 `,
 	DisableAutoGenTag: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runCat(cmd.Context(), globalOptions, args)
+		return runCat(cmd.Context(), globalOptions, catOptions, args)
 	},
 }
 
+// CatOptions bundles all options for the 'cat' command.
+type CatOptions struct {
+	RawOutput bool
+}
+
+var catOptions CatOptions
+
 func init() {
 	cmdRoot.AddCommand(cmdCat)
+
+	f := cmdCat.Flags()
+	f.BoolVar(&catOptions.RawOutput, "raw", false, "print objects as they are")
 }
 
 func validateCatArgs(args []string) error {
@@ -59,9 +69,12 @@ func validateCatArgs(args []string) error {
 	return nil
 }
 
-func runCat(ctx context.Context, gopts GlobalOptions, args []string) error {
+func runCat(ctx context.Context, gopts GlobalOptions, opts CatOptions, args []string) error {
 	if err := validateCatArgs(args); err != nil {
 		return err
+	}
+	if opts.RawOutput && args[0] != "key" {
+		return errors.Fatal("not implemented")
 	}
 
 	repo, err := OpenRepository(ctx, gopts)
@@ -119,6 +132,16 @@ func runCat(ctx context.Context, gopts GlobalOptions, args []string) error {
 		Println(string(buf))
 		return nil
 	case "key":
+		if catOptions.RawOutput {
+			h := backend.Handle{Type: restic.KeyFile, Name: id.String()}
+			data, err := backend.LoadAll(ctx, nil, repo.Backend(), h)
+			if err != nil {
+				return err
+			}
+			_, err = globalOptions.stdout.Write(data)
+			return err
+		}
+
 		key, err := repository.LoadKey(ctx, repo, id)
 		if err != nil {
 			return err
