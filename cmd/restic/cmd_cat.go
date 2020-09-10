@@ -28,12 +28,22 @@ Exit status is 11 if the repository is already locked.
 `,
 	DisableAutoGenTag: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runCat(cmd.Context(), globalOptions, args)
+		return runCat(cmd.Context(), globalOptions, catOptions, args)
 	},
 }
 
+// CatOptions bundles all options for the 'cat' command.
+type CatOptions struct {
+	RawOutput bool
+}
+
+var catOptions CatOptions
+
 func init() {
 	cmdRoot.AddCommand(cmdCat)
+
+	f := cmdCat.Flags()
+	f.BoolVar(&catOptions.RawOutput, "raw", false, "print objects as they are")
 }
 
 func validateCatArgs(args []string) error {
@@ -61,9 +71,12 @@ func validateCatArgs(args []string) error {
 	return nil
 }
 
-func runCat(ctx context.Context, gopts GlobalOptions, args []string) error {
+func runCat(ctx context.Context, gopts GlobalOptions, opts CatOptions, args []string) error {
 	if err := validateCatArgs(args); err != nil {
 		return err
+	}
+	if opts.RawOutput && args[0] != "key" {
+		return errors.Fatal("not implemented")
 	}
 
 	ctx, repo, unlock, err := openWithReadLock(ctx, gopts, gopts.NoLock)
@@ -113,6 +126,15 @@ func runCat(ctx context.Context, gopts GlobalOptions, args []string) error {
 		Println(string(buf))
 		return nil
 	case "key":
+		if catOptions.RawOutput {
+			data, err := repo.LoadRaw(ctx, restic.KeyFile, id)
+			if err != nil {
+				return err
+			}
+			_, err = globalOptions.stdout.Write(data)
+			return err
+		}
+
 		key, err := repository.LoadKey(ctx, repo, id)
 		if err != nil {
 			return err
