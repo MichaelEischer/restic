@@ -24,17 +24,30 @@ Exit status is 0 if the command was successful, and non-zero if there was any er
 `,
 	DisableAutoGenTag: true,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return runCat(globalOptions, args)
+		return runCat(catOptions, globalOptions, args)
 	},
 }
 
-func init() {
-	cmdRoot.AddCommand(cmdCat)
+// CatOptions bundles all options for the 'cat' command.
+type CatOptions struct {
+	RawOutput bool
 }
 
-func runCat(gopts GlobalOptions, args []string) error {
+var catOptions CatOptions
+
+func init() {
+	cmdRoot.AddCommand(cmdCat)
+
+	f := cmdCat.Flags()
+	f.BoolVar(&catOptions.RawOutput, "raw", false, "print objects as they are")
+}
+
+func runCat(catOptions CatOptions, gopts GlobalOptions, args []string) error {
 	if len(args) < 1 || (args[0] != "masterkey" && args[0] != "config" && len(args) != 2) {
 		return errors.Fatal("type or ID not specified")
+	}
+	if catOptions.RawOutput && args[0] != "key" {
+		return errors.Fatal("not implemented")
 	}
 
 	repo, err := OpenRepository(gopts)
@@ -102,6 +115,11 @@ func runCat(gopts GlobalOptions, args []string) error {
 		h := restic.Handle{Type: restic.KeyFile, Name: id.String()}
 		buf, err := backend.LoadAll(gopts.ctx, nil, repo.Backend(), h)
 		if err != nil {
+			return err
+		}
+
+		if catOptions.RawOutput {
+			_, err = globalOptions.stdout.Write(buf)
 			return err
 		}
 
