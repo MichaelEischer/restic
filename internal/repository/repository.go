@@ -846,7 +846,7 @@ func DownloadAndHash(ctx context.Context, be Loader, h restic.Handle) (tmpfile *
 			return ierr
 		}
 		hrd := hashing.NewReader(rd, sha256.New())
-		size, ierr = io.Copy(tmpfile, hrd)
+		size, ierr = hrd.WriteTo(tmpfile)
 		hash = restic.IDFromHash(hrd.Sum(nil))
 		return ierr
 	})
