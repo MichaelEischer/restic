@@ -56,7 +56,7 @@ type Repository interface {
 
 // Lister allows listing files in a backend.
 type Lister interface {
-	List(context.Context, FileType, func(FileInfo) error) error
+	List(ctx context.Context, t FileType, fn func(ID, int64) error) error
 }
 
 // LoaderUnpacked allows loading a blob not stored in a pack file

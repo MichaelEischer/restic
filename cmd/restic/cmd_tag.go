@@ -119,7 +119,7 @@ func runTag(ctx context.Context, opts TagOptions, gopts GlobalOptions, args []st
 	}
 
 	changeCnt := 0
-	for sn := range FindFilteredSnapshots(ctx, repo.Backend(), repo, opts.Hosts, opts.Tags, opts.Paths, args) {
+	for sn := range FindFilteredSnapshots(ctx, repo, repo, opts.Hosts, opts.Tags, opts.Paths, args) {
 		changed, err := changeTags(ctx, repo, sn, opts.SetTags.Flatten(), opts.AddTags.Flatten(), opts.RemoveTags.Flatten())
 		if err != nil {
 			Warnf("unable to modify the tags for snapshot ID %q, ignoring: %v\n", sn.ID(), err)

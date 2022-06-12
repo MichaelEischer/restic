@@ -12,7 +12,6 @@ import (
 	"sync"
 
 	"github.com/minio/sha256-simd"
-	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/backend/s3"
 	"github.com/restic/restic/internal/cache"
 	"github.com/restic/restic/internal/debug"
@@ -97,7 +96,7 @@ func (err *ErrOldIndexFormat) Error() string {
 
 func (c *Checker) LoadSnapshots(ctx context.Context) error {
 	var err error
-	c.snapshots, err = backend.MemorizeList(ctx, c.repo.Backend(), restic.SnapshotFile)
+	c.snapshots, err = repository.MemorizeList(ctx, c.repo, restic.SnapshotFile)
 	return err
 }
 

@@ -5,8 +5,8 @@ import (
 	"os"
 	"time"
 
-	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/errors"
+	"github.com/restic/restic/internal/repository"
 	"github.com/restic/restic/internal/restic"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
@@ -52,7 +52,7 @@ func runRecover(ctx context.Context, gopts GlobalOptions) error {
 		return err
 	}
 
-	snapshotLister, err := backend.MemorizeList(ctx, repo.Backend(), restic.SnapshotFile)
+	snapshotLister, err := repository.MemorizeList(ctx, repo, restic.SnapshotFile)
 	if err != nil {
 		return err
 	}

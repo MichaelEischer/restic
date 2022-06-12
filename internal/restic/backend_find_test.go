@@ -6,12 +6,10 @@ import (
 	"testing"
 )
 
-type mockBackend struct {
-	list func(context.Context, FileType, func(FileInfo) error) error
-}
+type mockLister func(ctx context.Context, t FileType, fn func(id ID, size int64) error) error
 
-func (m mockBackend) List(ctx context.Context, t FileType, fn func(FileInfo) error) error {
-	return m.list(ctx, t, fn)
+func (l mockLister) List(ctx context.Context, t FileType, fn func(id ID, size int64) error) error {
+	return l(ctx, t, fn)
 }
 
 var samples = IDs{
@@ -28,16 +26,15 @@ var samples = IDs{
 func TestFind(t *testing.T) {
 	list := samples
 
-	m := mockBackend{}
-	m.list = func(ctx context.Context, t FileType, fn func(FileInfo) error) error {
+	m := mockLister(func(ctx context.Context, t FileType, fn func(id ID, size int64) error) error {
 		for _, id := range list {
-			err := fn(FileInfo{Name: id.String()})
+			err := fn(id, 42)
 			if err != nil {
 				return err
 			}
 		}
 		return nil
-	}
+	})
 
 	f, err := Find(context.TODO(), m, SnapshotFile, "20bdc1402a6fc9b633aa")
 	if err != nil {

@@ -22,17 +22,11 @@ func ParallelList(ctx context.Context, r Lister, t FileType, parallelism uint, f
 	// send list of index files through ch, which is closed afterwards
 	wg.Go(func() error {
 		defer close(ch)
-		return r.List(ctx, t, func(fi FileInfo) error {
-			id, err := ParseID(fi.Name)
-			if err != nil {
-				debug.Log("unable to parse %v as an ID", fi.Name)
-				return nil
-			}
-
+		return r.List(ctx, t, func(id ID, size int64) error {
 			select {
 			case <-ctx.Done():
 				return nil
-			case ch <- FileIDInfo{id, fi.Size}:
+			case ch <- FileIDInfo{id, size}:
 			}
 			return nil
 		})

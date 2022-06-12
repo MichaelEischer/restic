@@ -19,7 +19,7 @@ func ForAllIndexes(ctx context.Context, repo restic.Repository,
 	workerCount := repo.Connections() + uint(runtime.GOMAXPROCS(0))
 
 	var m sync.Mutex
-	return restic.ParallelList(ctx, repo.Backend(), restic.IndexFile, workerCount, func(ctx context.Context, id restic.ID, size int64) error {
+	return restic.ParallelList(ctx, repo, restic.IndexFile, workerCount, func(ctx context.Context, id restic.ID, size int64) error {
 		var err error
 		var idx *Index
 		oldFormat := false

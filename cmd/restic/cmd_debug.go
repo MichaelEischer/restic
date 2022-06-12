@@ -78,7 +78,7 @@ func prettyPrintJSON(wr io.Writer, item interface{}) error {
 }
 
 func debugPrintSnapshots(ctx context.Context, repo *repository.Repository, wr io.Writer) error {
-	return restic.ForAllSnapshots(ctx, repo.Backend(), repo, nil, func(id restic.ID, snapshot *restic.Snapshot, err error) error {
+	return restic.ForAllSnapshots(ctx, repo, repo, nil, func(id restic.ID, snapshot *restic.Snapshot, err error) error {
 		if err != nil {
 			return err
 		}
@@ -440,7 +440,7 @@ func runDebugExamine(ctx context.Context, gopts GlobalOptions, args []string) er
 	for _, name := range args {
 		id, err := restic.ParseID(name)
 		if err != nil {
-			id, err = restic.Find(ctx, repo.Backend(), restic.PackFile, name)
+			id, err = restic.Find(ctx, repo, restic.PackFile, name)
 			if err != nil {
 				Warnf("error: %v\n", err)
 				continue
