@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/restic/restic/internal/archiver"
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/restic"
 	"github.com/restic/restic/internal/ui/signals"
 )
@@ -15,7 +16,7 @@ type ProgressPrinter interface {
 	Update(total, processed Counter, errors uint, currentFiles map[string]struct{}, start time.Time, secs uint64)
 	Error(item string, err error) error
 	ScannerError(item string, err error) error
-	CompleteItem(messageType string, item string, previous, current *restic.Node, s archiver.ItemStats, d time.Duration)
+	CompleteItem(messageType string, item string, previous, current *data.Node, s archiver.ItemStats, d time.Duration)
 	ReportTotal(item string, start time.Time, s archiver.ScanStats)
 	Finish(snapshotID restic.ID, start time.Time, summary *Summary, dryRun bool)
 	Reset()
@@ -193,7 +194,7 @@ func (p *Progress) CompleteBlob(bytes uint64) {
 
 // CompleteItem is the status callback function for the archiver when a
 // file/dir has been saved successfully.
-func (p *Progress) CompleteItem(item string, previous, current *restic.Node, s archiver.ItemStats, d time.Duration) {
+func (p *Progress) CompleteItem(item string, previous, current *data.Node, s archiver.ItemStats, d time.Duration) {
 	p.summary.Lock()
 	p.summary.ItemStats.Add(s)
 

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/restic/restic/internal/bloblru"
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/repository"
 	"github.com/restic/restic/internal/restic"
 
@@ -51,15 +52,15 @@ func firstSnapshotID(t testing.TB, repo restic.Repository) (first restic.ID) {
 	return first
 }
 
-func loadFirstSnapshot(t testing.TB, repo restic.Repository) *restic.Snapshot {
+func loadFirstSnapshot(t testing.TB, repo restic.Repository) *data.Snapshot {
 	id := firstSnapshotID(t, repo)
-	sn, err := restic.LoadSnapshot(context.TODO(), repo, id)
+	sn, err := data.LoadSnapshot(context.TODO(), repo, id)
 	rtest.OK(t, err)
 	return sn
 }
 
-func loadTree(t testing.TB, repo restic.Repository, id restic.ID) *restic.Tree {
-	tree, err := restic.LoadTree(context.TODO(), repo, id)
+func loadTree(t testing.TB, repo restic.Repository, id restic.ID) *data.Tree {
+	tree, err := data.LoadTree(context.TODO(), repo, id)
 	rtest.OK(t, err)
 	return tree
 }
@@ -73,7 +74,7 @@ func TestFuseFile(t *testing.T) {
 
 	timestamp, err := time.Parse(time.RFC3339, "2017-01-24T10:42:56+01:00")
 	rtest.OK(t, err)
-	restic.TestCreateSnapshot(t, repo, timestamp, 2, 0.1)
+	data.TestCreateSnapshot(t, repo, timestamp, 2, 0.1)
 
 	sn := loadFirstSnapshot(t, repo)
 	tree := loadTree(t, repo, *sn.Tree)
@@ -109,7 +110,7 @@ func TestFuseFile(t *testing.T) {
 
 	t.Logf("filesize is %v, memfile has size %v", filesize, len(memfile))
 
-	node := &restic.Node{
+	node := &data.Node{
 		Name:    "foo",
 		Inode:   23,
 		Mode:    0742,
@@ -153,7 +154,7 @@ func TestFuseDir(t *testing.T) {
 
 	root := &Root{repo: repo, blobCache: bloblru.New(blobCacheSize)}
 
-	node := &restic.Node{
+	node := &data.Node{
 		Mode:       0755,
 		UID:        42,
 		GID:        43,
@@ -183,7 +184,7 @@ func TestTopUIDGID(t *testing.T) {
 	repo, cleanup := repository.TestRepository(t)
 	defer cleanup()
 
-	restic.TestCreateSnapshot(t, repo, time.Unix(1460289341, 207401672), 0, 0)
+	data.TestCreateSnapshot(t, repo, time.Unix(1460289341, 207401672), 0, 0)
 
 	testTopUIDGID(t, Config{}, repo, uint32(os.Getuid()), uint32(os.Getgid()))
 	testTopUIDGID(t, Config{OwnerIsRoot: true}, repo, 0, 0)

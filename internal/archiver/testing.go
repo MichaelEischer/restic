@@ -12,13 +12,14 @@ import (
 	"time"
 
 	"github.com/restic/restic/internal/crypto"
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/fs"
 	"github.com/restic/restic/internal/restic"
 )
 
 // TestSnapshot creates a new snapshot of path.
-func TestSnapshot(t testing.TB, repo restic.Repository, path string, parent *restic.ID) *restic.Snapshot {
+func TestSnapshot(t testing.TB, repo restic.Repository, path string, parent *restic.ID) *data.Snapshot {
 	arch := New(repo, fs.Local{}, Options{})
 	opts := SnapshotOptions{
 		Time:     time.Now(),
@@ -26,7 +27,7 @@ func TestSnapshot(t testing.TB, repo restic.Repository, path string, parent *res
 		Tags:     []string{"test"},
 	}
 	if parent != nil {
-		sn, err := restic.LoadSnapshot(context.TODO(), arch.Repo, *parent)
+		sn, err := data.LoadSnapshot(context.TODO(), arch.Repo, *parent)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -224,7 +225,7 @@ func TestEnsureFiles(t testing.TB, target string, dir TestDir) {
 }
 
 // TestEnsureFileContent checks if the file in the repo is the same as file.
-func TestEnsureFileContent(ctx context.Context, t testing.TB, repo restic.Repository, filename string, node *restic.Node, file TestFile) {
+func TestEnsureFileContent(ctx context.Context, t testing.TB, repo restic.Repository, filename string, node *data.Node, file TestFile) {
 	if int(node.Size) != len(file.Content) {
 		t.Fatalf("%v: wrong node size: want %d, got %d", filename, node.Size, len(file.Content))
 		return
@@ -255,7 +256,7 @@ func TestEnsureFileContent(ctx context.Context, t testing.TB, repo restic.Reposi
 func TestEnsureTree(ctx context.Context, t testing.TB, prefix string, repo restic.Repository, treeID restic.ID, dir TestDir) {
 	t.Helper()
 
-	tree, err := restic.LoadTree(ctx, repo, treeID)
+	tree, err := data.LoadTree(ctx, repo, treeID)
 	if err != nil {
 		t.Fatal(err)
 		return
@@ -333,7 +334,7 @@ func TestEnsureSnapshot(t testing.TB, repo restic.Repository, snapshotID restic.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	sn, err := restic.LoadSnapshot(ctx, repo, snapshotID)
+	sn, err := data.LoadSnapshot(ctx, repo, snapshotID)
 	if err != nil {
 		t.Fatal(err)
 		return

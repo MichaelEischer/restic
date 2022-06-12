@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/filter"
 	"github.com/restic/restic/internal/fs"
@@ -51,7 +52,7 @@ func parseIDsFromReader(t testing.TB, rd io.Reader) restic.IDs {
 func testRunInit(t testing.TB, opts GlobalOptions) {
 	repository.TestUseLowSecurityKDFParameters(t)
 	restic.TestDisableCheckPolynomial(t)
-	restic.TestSetLockTimeout(t, 0)
+	data.TestSetLockTimeout(t, 0)
 
 	rtest.OK(t, runInit(context.TODO(), InitOptions{}, opts, nil))
 	t.Logf("repository initialized at %v", opts.Repo)
@@ -735,7 +736,7 @@ func TestBackupTags(t *testing.T) {
 		"expected no tags, got %v", newest.Tags)
 	parent := newest
 
-	opts.Tags = restic.TagLists{[]string{"NL"}}
+	opts.Tags = data.TagLists{[]string{"NL"}}
 	testRunBackup(t, "", []string{env.testdata}, opts, env.gopts)
 	testRunCheck(t, env.gopts)
 	newest, _ = testRunSnapshots(t, env.gopts)
@@ -942,7 +943,7 @@ func TestTag(t *testing.T) {
 		"expected original ID to be nil, got %v", newest.Original)
 	originalID := *newest.ID
 
-	testRunTag(t, TagOptions{SetTags: restic.TagLists{[]string{"NL"}}}, env.gopts)
+	testRunTag(t, TagOptions{SetTags: data.TagLists{[]string{"NL"}}}, env.gopts)
 	testRunCheck(t, env.gopts)
 	newest, _ = testRunSnapshots(t, env.gopts)
 	if newest == nil {
@@ -954,7 +955,7 @@ func TestTag(t *testing.T) {
 	rtest.Assert(t, *newest.Original == originalID,
 		"expected original ID to be set to the first snapshot id")
 
-	testRunTag(t, TagOptions{AddTags: restic.TagLists{[]string{"CH"}}}, env.gopts)
+	testRunTag(t, TagOptions{AddTags: data.TagLists{[]string{"CH"}}}, env.gopts)
 	testRunCheck(t, env.gopts)
 	newest, _ = testRunSnapshots(t, env.gopts)
 	if newest == nil {
@@ -966,7 +967,7 @@ func TestTag(t *testing.T) {
 	rtest.Assert(t, *newest.Original == originalID,
 		"expected original ID to be set to the first snapshot id")
 
-	testRunTag(t, TagOptions{RemoveTags: restic.TagLists{[]string{"NL"}}}, env.gopts)
+	testRunTag(t, TagOptions{RemoveTags: data.TagLists{[]string{"NL"}}}, env.gopts)
 	testRunCheck(t, env.gopts)
 	newest, _ = testRunSnapshots(t, env.gopts)
 	if newest == nil {
@@ -978,8 +979,8 @@ func TestTag(t *testing.T) {
 	rtest.Assert(t, *newest.Original == originalID,
 		"expected original ID to be set to the first snapshot id")
 
-	testRunTag(t, TagOptions{AddTags: restic.TagLists{[]string{"US", "RU"}}}, env.gopts)
-	testRunTag(t, TagOptions{RemoveTags: restic.TagLists{[]string{"CH", "US", "RU"}}}, env.gopts)
+	testRunTag(t, TagOptions{AddTags: data.TagLists{[]string{"US", "RU"}}}, env.gopts)
+	testRunTag(t, TagOptions{RemoveTags: data.TagLists{[]string{"CH", "US", "RU"}}}, env.gopts)
 	testRunCheck(t, env.gopts)
 	newest, _ = testRunSnapshots(t, env.gopts)
 	if newest == nil {
@@ -992,7 +993,7 @@ func TestTag(t *testing.T) {
 		"expected original ID to be set to the first snapshot id")
 
 	// Check special case of removing all tags.
-	testRunTag(t, TagOptions{SetTags: restic.TagLists{[]string{""}}}, env.gopts)
+	testRunTag(t, TagOptions{SetTags: data.TagLists{[]string{""}}}, env.gopts)
 	testRunCheck(t, env.gopts)
 	newest, _ = testRunSnapshots(t, env.gopts)
 	if newest == nil {

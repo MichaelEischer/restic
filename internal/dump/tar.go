@@ -7,11 +7,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/errors"
-	"github.com/restic/restic/internal/restic"
 )
 
-func (d *Dumper) dumpTar(ctx context.Context, ch <-chan *restic.Node) (err error) {
+func (d *Dumper) dumpTar(ctx context.Context, ch <-chan *data.Node) (err error) {
 	w := tar.NewWriter(d.w)
 
 	defer func() {
@@ -38,7 +38,7 @@ const (
 	cISVTX = 0o1000 // Save text (sticky bit)
 )
 
-func (d *Dumper) dumpNodeTar(ctx context.Context, node *restic.Node, w *tar.Writer) error {
+func (d *Dumper) dumpNodeTar(ctx context.Context, node *data.Node, w *tar.Writer) error {
 	relPath, err := filepath.Rel("/", node.Path)
 	if err != nil {
 		return err
@@ -91,7 +91,7 @@ func (d *Dumper) dumpNodeTar(ctx context.Context, node *restic.Node, w *tar.Writ
 	return d.writeNode(ctx, w, node)
 }
 
-func parseXattrs(xattrs []restic.ExtendedAttribute) map[string]string {
+func parseXattrs(xattrs []data.ExtendedAttribute) map[string]string {
 	tmpMap := make(map[string]string)
 
 	for _, attr := range xattrs {

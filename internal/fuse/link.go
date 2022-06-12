@@ -8,7 +8,7 @@ import (
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
-	"github.com/restic/restic/internal/restic"
+	"github.com/restic/restic/internal/data"
 )
 
 // Statically ensure that *link implements the given interface
@@ -16,11 +16,11 @@ var _ = fs.NodeReadlinker(&link{})
 
 type link struct {
 	root  *Root
-	node  *restic.Node
+	node  *data.Node
 	inode uint64
 }
 
-func newLink(root *Root, inode uint64, node *restic.Node) (*link, error) {
+func newLink(root *Root, inode uint64, node *data.Node) (*link, error) {
 	return &link{root: root, inode: inode, node: node}, nil
 }
 

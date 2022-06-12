@@ -10,8 +10,8 @@ import (
 	"syscall"
 	"testing"
 
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/repository"
-	"github.com/restic/restic/internal/restic"
 	rtest "github.com/restic/restic/internal/test"
 )
 
@@ -32,7 +32,7 @@ func TestRestorerRestoreEmptyHardlinkedFileds(t *testing.T) {
 
 	res := NewRestorer(context.TODO(), repo, sn, false)
 
-	res.SelectFilter = func(item string, dstpath string, node *restic.Node) (selectedForRestore bool, childMayBeSelected bool) {
+	res.SelectFilter = func(item string, dstpath string, node *data.Node) (selectedForRestore bool, childMayBeSelected bool) {
 		return true, true
 	}
 

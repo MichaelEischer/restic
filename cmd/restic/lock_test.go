@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/repository"
 	"github.com/restic/restic/internal/restic"
 	rtest "github.com/restic/restic/internal/test"
@@ -23,7 +24,7 @@ func openTestRepo(t *testing.T, wrapper backendWrapper) (*repository.Repository,
 	return repo, cleanup, env
 }
 
-func checkedLockRepo(ctx context.Context, t *testing.T, repo restic.Repository) (*restic.Lock, context.Context) {
+func checkedLockRepo(ctx context.Context, t *testing.T, repo restic.Repository) (*data.Lock, context.Context) {
 	lock, wrappedCtx, err := lockRepo(ctx, repo)
 	rtest.OK(t, err)
 	rtest.OK(t, wrappedCtx.Err())

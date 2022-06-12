@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/restic/restic/internal/bloblru"
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/restic"
 
@@ -17,7 +18,7 @@ import (
 type Config struct {
 	OwnerIsRoot   bool
 	Hosts         []string
-	Tags          []restic.TagList
+	Tags          []data.TagList
 	Paths         []string
 	TimeTemplate  string
 	PathTemplates []string

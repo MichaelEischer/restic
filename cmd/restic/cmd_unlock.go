@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 
-	"github.com/restic/restic/internal/restic"
+	"github.com/restic/restic/internal/data"
 	"github.com/spf13/cobra"
 )
 
@@ -43,9 +43,9 @@ func runUnlock(ctx context.Context, opts UnlockOptions, gopts GlobalOptions) err
 		return err
 	}
 
-	fn := restic.RemoveStaleLocks
+	fn := data.RemoveStaleLocks
 	if opts.RemoveAll {
-		fn = restic.RemoveAllLocks
+		fn = data.RemoveAllLocks
 	}
 
 	processed, err := fn(ctx, repo)

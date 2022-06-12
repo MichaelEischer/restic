@@ -5,10 +5,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/filter"
-	"github.com/restic/restic/internal/restic"
 	"github.com/restic/restic/internal/restorer"
 
 	"github.com/spf13/cobra"
@@ -123,7 +123,7 @@ func runRestore(ctx context.Context, opts RestoreOptions, gopts GlobalOptions, a
 	}
 
 	if !gopts.NoLock {
-		var lock *restic.Lock
+		var lock *data.Lock
 		lock, ctx, err = lockRepo(ctx, repo)
 		defer unlockRepo(lock)
 		if err != nil {
@@ -131,7 +131,7 @@ func runRestore(ctx context.Context, opts RestoreOptions, gopts GlobalOptions, a
 		}
 	}
 
-	sn, err := restic.FindFilteredSnapshot(ctx, repo, opts.Hosts, opts.Tags, opts.Paths, nil, snapshotIDString)
+	sn, err := data.FindFilteredSnapshot(ctx, repo, opts.Hosts, opts.Tags, opts.Paths, nil, snapshotIDString)
 	if err != nil {
 		Exitf(1, "failed to find snapshot: %v", err)
 	}
@@ -152,7 +152,7 @@ func runRestore(ctx context.Context, opts RestoreOptions, gopts GlobalOptions, a
 
 	excludePatterns := filter.ParsePatterns(opts.Exclude)
 	insensitiveExcludePatterns := filter.ParsePatterns(opts.InsensitiveExclude)
-	selectExcludeFilter := func(item string, dstpath string, node *restic.Node) (selectedForRestore bool, childMayBeSelected bool) {
+	selectExcludeFilter := func(item string, dstpath string, node *data.Node) (selectedForRestore bool, childMayBeSelected bool) {
 		matched, err := filter.List(excludePatterns, item)
 		if err != nil {
 			Warnf("error for exclude pattern: %v", err)
@@ -175,7 +175,7 @@ func runRestore(ctx context.Context, opts RestoreOptions, gopts GlobalOptions, a
 
 	includePatterns := filter.ParsePatterns(opts.Include)
 	insensitiveIncludePatterns := filter.ParsePatterns(opts.InsensitiveInclude)
-	selectIncludeFilter := func(item string, dstpath string, node *restic.Node) (selectedForRestore bool, childMayBeSelected bool) {
+	selectIncludeFilter := func(item string, dstpath string, node *data.Node) (selectedForRestore bool, childMayBeSelected bool) {
 		matched, childMayMatch, err := filter.ListWithChild(includePatterns, item)
 		if err != nil {
 			Warnf("error for include pattern: %v", err)

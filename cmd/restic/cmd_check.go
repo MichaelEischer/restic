@@ -13,6 +13,7 @@ import (
 
 	"github.com/restic/restic/internal/cache"
 	"github.com/restic/restic/internal/checker"
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/fs"
 	"github.com/restic/restic/internal/restic"
@@ -210,7 +211,7 @@ func runCheck(ctx context.Context, opts CheckOptions, gopts GlobalOptions, args 
 
 	if !gopts.NoLock {
 		Verbosef("create exclusive lock for repository\n")
-		var lock *restic.Lock
+		var lock *data.Lock
 		lock, ctx, err = lockRepoExclusive(ctx, repo)
 		defer unlockRepo(lock)
 		if err != nil {

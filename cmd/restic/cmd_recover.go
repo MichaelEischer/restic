@@ -5,6 +5,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/repository"
 	"github.com/restic/restic/internal/restic"
@@ -76,7 +77,7 @@ func runRecover(ctx context.Context, gopts GlobalOptions) error {
 	Verbosef("load %d trees\n", len(trees))
 	bar := newProgressMax(!gopts.Quiet, uint64(len(trees)), "trees loaded")
 	for id := range trees {
-		tree, err := restic.LoadTree(ctx, repo, id)
+		tree, err := data.LoadTree(ctx, repo, id)
 		if err != nil {
 			Warnf("unable to load tree %v: %v\n", id.Str(), err)
 			continue
@@ -92,7 +93,7 @@ func runRecover(ctx context.Context, gopts GlobalOptions) error {
 	bar.Done()
 
 	Verbosef("load snapshots\n")
-	err = restic.ForAllSnapshots(ctx, repo, nil, func(id restic.ID, sn *restic.Snapshot, err error) error {
+	err = data.ForAllSnapshots(ctx, repo, nil, func(id restic.ID, sn *data.Snapshot, err error) error {
 		trees[*sn.Tree] = true
 		return nil
 	})
@@ -115,10 +116,10 @@ func runRecover(ctx context.Context, gopts GlobalOptions) error {
 		return nil
 	}
 
-	tree := restic.NewTree(len(roots))
+	tree := data.NewTree(len(roots))
 	for id := range roots {
 		var subtreeID = id
-		node := restic.Node{
+		node := data.Node{
 			Type:       "dir",
 			Name:       id.Str(),
 			Mode:       0755,
@@ -139,7 +140,7 @@ func runRecover(ctx context.Context, gopts GlobalOptions) error {
 	var treeID restic.ID
 	wg.Go(func() error {
 		var err error
-		treeID, err = restic.SaveTree(wgCtx, repo, tree)
+		treeID, err = data.SaveTree(wgCtx, repo, tree)
 		if err != nil {
 			return errors.Fatalf("unable to save new tree to the repository: %v", err)
 		}
@@ -160,14 +161,14 @@ func runRecover(ctx context.Context, gopts GlobalOptions) error {
 }
 
 func createSnapshot(ctx context.Context, name, hostname string, tags []string, repo restic.Repository, tree *restic.ID) error {
-	sn, err := restic.NewSnapshot([]string{name}, tags, hostname, time.Now())
+	sn, err := data.NewSnapshot([]string{name}, tags, hostname, time.Now())
 	if err != nil {
 		return errors.Fatalf("unable to save snapshot: %v", err)
 	}
 
 	sn.Tree = tree
 
-	id, err := restic.SaveSnapshot(ctx, repo, sn)
+	id, err := data.SaveSnapshot(ctx, repo, sn)
 	if err != nil {
 		return errors.Fatalf("unable to save snapshot: %v", err)
 	}

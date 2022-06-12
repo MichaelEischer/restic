@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/restic/restic/internal/restic"
+	"github.com/restic/restic/internal/data"
 )
 
 func formatBytes(c uint64) string {
@@ -56,7 +56,7 @@ func formatDuration(d time.Duration) string {
 	return formatSeconds(sec)
 }
 
-func formatNode(path string, n *restic.Node, long bool) string {
+func formatNode(path string, n *data.Node, long bool) string {
 	if !long {
 		return path
 	}

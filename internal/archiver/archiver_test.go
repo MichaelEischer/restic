@@ -18,6 +18,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/restic/restic/internal/backend/mem"
 	"github.com/restic/restic/internal/checker"
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/fs"
 	"github.com/restic/restic/internal/repository"
@@ -40,7 +41,7 @@ func prepareTempdirRepoSrc(t testing.TB, src TestDir) (tempdir string, repo rest
 	return tempdir, repo, cleanup
 }
 
-func saveFile(t testing.TB, repo restic.Repository, filename string, filesystem fs.FS) (*restic.Node, ItemStats) {
+func saveFile(t testing.TB, repo restic.Repository, filename string, filesystem fs.FS) (*data.Node, ItemStats) {
 	wg, ctx := errgroup.WithContext(context.TODO())
 	repo.StartPackUploader(ctx, wg)
 
@@ -53,14 +54,14 @@ func saveFile(t testing.TB, repo restic.Repository, filename string, filesystem 
 	}
 
 	var (
-		completeCallbackNode  *restic.Node
+		completeCallbackNode  *data.Node
 		completeCallbackStats ItemStats
 		completeCallback      bool
 
 		startCallback bool
 	)
 
-	complete := func(node *restic.Node, stats ItemStats) {
+	complete := func(node *data.Node, stats ItemStats) {
 		completeCallback = true
 		completeCallbackNode = node
 		completeCallbackStats = stats
@@ -430,8 +431,8 @@ func (repo *blobCountingRepo) SaveBlob(ctx context.Context, t restic.BlobType, b
 	return id, exists, size, err
 }
 
-func (repo *blobCountingRepo) SaveTree(ctx context.Context, t *restic.Tree) (restic.ID, error) {
-	id, err := restic.SaveTree(ctx, repo.Repository, t)
+func (repo *blobCountingRepo) SaveTree(ctx context.Context, t *data.Tree) (restic.ID, error) {
+	id, err := data.SaveTree(ctx, repo.Repository, t)
 	h := restic.BlobHandle{ID: id, Type: restic.TreeBlob}
 	repo.m.Lock()
 	repo.saved[h]++
@@ -555,8 +556,8 @@ func rename(t testing.TB, oldname, newname string) {
 	}
 }
 
-func nodeFromFI(t testing.TB, filename string, fi os.FileInfo) *restic.Node {
-	node, err := restic.NodeFromFileInfo(filename, fi)
+func nodeFromFI(t testing.TB, filename string, fi os.FileInfo) *data.Node {
+	node, err := data.NodeFromFileInfo(filename, fi)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -874,8 +875,8 @@ func TestArchiverSaveDir(t *testing.T) {
 			}
 
 			node.Name = targetNodeName
-			tree := &restic.Tree{Nodes: []*restic.Node{node}}
-			treeID, err := restic.SaveTree(ctx, repo, tree)
+			tree := &data.Tree{Nodes: []*data.Node{node}}
+			treeID, err := data.SaveTree(ctx, repo, tree)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1095,7 +1096,7 @@ func TestArchiverSaveTree(t *testing.T) {
 
 			var stat ItemStats
 			lock := &sync.Mutex{}
-			arch.CompleteItem = func(item string, previous, current *restic.Node, s ItemStats, d time.Duration) {
+			arch.CompleteItem = func(item string, previous, current *data.Node, s ItemStats, d time.Duration) {
 				lock.Lock()
 				defer lock.Unlock()
 				stat.Add(s)
@@ -2063,7 +2064,7 @@ func TestArchiverAbortEarlyOnError(t *testing.T) {
 	}
 }
 
-func snapshot(t testing.TB, repo restic.Repository, fs fs.FS, parent *restic.Snapshot, filename string) (*restic.Snapshot, *restic.Node) {
+func snapshot(t testing.TB, repo restic.Repository, fs fs.FS, parent *data.Snapshot, filename string) (*data.Snapshot, *data.Node) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -2078,7 +2079,7 @@ func snapshot(t testing.TB, repo restic.Repository, fs fs.FS, parent *restic.Sna
 		t.Fatal(err)
 	}
 
-	tree, err := restic.LoadTree(ctx, repo, *snapshot.Tree)
+	tree, err := data.LoadTree(ctx, repo, *snapshot.Tree)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -2158,7 +2159,7 @@ func TestMetadataChanged(t *testing.T) {
 
 	// get metadata
 	fi := lstat(t, "testfile")
-	want, err := restic.NodeFromFileInfo("testfile", fi)
+	want, err := data.NodeFromFileInfo("testfile", fi)
 	if err != nil {
 		t.Fatal(err)
 	}

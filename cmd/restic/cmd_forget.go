@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/restic"
 	"github.com/spf13/cobra"
@@ -44,13 +45,13 @@ type ForgetOptions struct {
 	Weekly        int
 	Monthly       int
 	Yearly        int
-	Within        restic.Duration
-	WithinHourly  restic.Duration
-	WithinDaily   restic.Duration
-	WithinWeekly  restic.Duration
-	WithinMonthly restic.Duration
-	WithinYearly  restic.Duration
-	KeepTags      restic.TagLists
+	Within        data.Duration
+	WithinHourly  data.Duration
+	WithinDaily   data.Duration
+	WithinWeekly  data.Duration
+	WithinMonthly data.Duration
+	WithinYearly  data.Duration
+	KeepTags      data.TagLists
 
 	snapshotFilterOptions
 	Compact bool
@@ -115,7 +116,7 @@ func runForget(ctx context.Context, opts ForgetOptions, gopts GlobalOptions, arg
 	}
 
 	if !opts.DryRun || !gopts.NoLock {
-		var lock *restic.Lock
+		var lock *data.Lock
 		lock, ctx, err = lockRepoExclusive(ctx, repo)
 		defer unlockRepo(lock)
 		if err != nil {
@@ -123,7 +124,7 @@ func runForget(ctx context.Context, opts ForgetOptions, gopts GlobalOptions, arg
 		}
 	}
 
-	var snapshots restic.Snapshots
+	var snapshots data.Snapshots
 	removeSnIDs := restic.NewIDSet()
 
 	for sn := range FindFilteredSnapshots(ctx, repo, opts.Hosts, opts.Tags, opts.Paths, args) {
@@ -138,12 +139,12 @@ func runForget(ctx context.Context, opts ForgetOptions, gopts GlobalOptions, arg
 			removeSnIDs.Insert(*sn.ID())
 		}
 	} else {
-		snapshotGroups, _, err := restic.GroupSnapshots(snapshots, opts.GroupBy)
+		snapshotGroups, _, err := data.GroupSnapshots(snapshots, opts.GroupBy)
 		if err != nil {
 			return err
 		}
 
-		policy := restic.ExpirePolicy{
+		policy := data.ExpirePolicy{
 			Last:          opts.Last,
 			Hourly:        opts.Hourly,
 			Daily:         opts.Daily,
@@ -178,7 +179,7 @@ func runForget(ctx context.Context, opts ForgetOptions, gopts GlobalOptions, arg
 					}
 				}
 
-				var key restic.SnapshotGroupKey
+				var key data.SnapshotGroupKey
 				if json.Unmarshal([]byte(k), &key) != nil {
 					return err
 				}
@@ -188,7 +189,7 @@ func runForget(ctx context.Context, opts ForgetOptions, gopts GlobalOptions, arg
 				fg.Host = key.Hostname
 				fg.Paths = key.Paths
 
-				keep, remove, reasons := restic.ApplyPolicy(snapshotGroup, policy)
+				keep, remove, reasons := data.ApplyPolicy(snapshotGroup, policy)
 
 				if len(keep) != 0 && !gopts.Quiet && !gopts.JSON {
 					Printf("keep %d snapshots:\n", len(keep))
@@ -248,15 +249,15 @@ func runForget(ctx context.Context, opts ForgetOptions, gopts GlobalOptions, arg
 
 // ForgetGroup helps to print what is forgotten in JSON.
 type ForgetGroup struct {
-	Tags    []string            `json:"tags"`
-	Host    string              `json:"host"`
-	Paths   []string            `json:"paths"`
-	Keep    []Snapshot          `json:"keep"`
-	Remove  []Snapshot          `json:"remove"`
-	Reasons []restic.KeepReason `json:"reasons"`
+	Tags    []string          `json:"tags"`
+	Host    string            `json:"host"`
+	Paths   []string          `json:"paths"`
+	Keep    []Snapshot        `json:"keep"`
+	Remove  []Snapshot        `json:"remove"`
+	Reasons []data.KeepReason `json:"reasons"`
 }
 
-func addJSONSnapshots(js *[]Snapshot, list restic.Snapshots) {
+func addJSONSnapshots(js *[]Snapshot, list data.Snapshots) {
 	for _, sn := range list {
 		k := Snapshot{
 			Snapshot: sn,

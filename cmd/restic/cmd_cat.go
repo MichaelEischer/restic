@@ -7,6 +7,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/restic/restic/internal/backend"
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/repository"
 	"github.com/restic/restic/internal/restic"
@@ -44,7 +45,7 @@ func runCat(ctx context.Context, gopts GlobalOptions, args []string) error {
 	}
 
 	if !gopts.NoLock {
-		var lock *restic.Lock
+		var lock *data.Lock
 		lock, ctx, err = lockRepo(ctx, repo)
 		defer unlockRepo(lock)
 		if err != nil {
@@ -80,7 +81,7 @@ func runCat(ctx context.Context, gopts GlobalOptions, args []string) error {
 		Println(string(buf))
 		return nil
 	case "snapshot":
-		sn, err := restic.FindSnapshot(ctx, repo, args[1])
+		sn, err := data.FindSnapshot(ctx, repo, args[1])
 		if err != nil {
 			return errors.Fatalf("could not find snapshot: %v\n", err)
 		}
@@ -114,7 +115,7 @@ func runCat(ctx context.Context, gopts GlobalOptions, args []string) error {
 		Println(string(buf))
 		return nil
 	case "lock":
-		lock, err := restic.LoadLock(ctx, repo, id)
+		lock, err := data.LoadLock(ctx, repo, id)
 		if err != nil {
 			return err
 		}

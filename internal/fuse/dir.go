@@ -13,6 +13,7 @@ import (
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
 
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/restic"
 )
@@ -23,10 +24,10 @@ var _ = fs.NodeStringLookuper(&dir{})
 
 type dir struct {
 	root        *Root
-	items       map[string]*restic.Node
+	items       map[string]*data.Node
 	inode       uint64
 	parentInode uint64
-	node        *restic.Node
+	node        *data.Node
 	m           sync.Mutex
 }
 
@@ -34,7 +35,7 @@ func cleanupNodeName(name string) string {
 	return filepath.Base(name)
 }
 
-func newDir(root *Root, inode, parentInode uint64, node *restic.Node) (*dir, error) {
+func newDir(root *Root, inode, parentInode uint64, node *data.Node) (*dir, error) {
 	debug.Log("new dir for %v (%v)", node.Name, node.Subtree)
 
 	return &dir{
@@ -57,16 +58,16 @@ func unwrapCtxCanceled(err error) error {
 
 // replaceSpecialNodes replaces nodes with name "." and "/" by their contents.
 // Otherwise, the node is returned.
-func replaceSpecialNodes(ctx context.Context, repo restic.Repository, node *restic.Node) ([]*restic.Node, error) {
+func replaceSpecialNodes(ctx context.Context, repo restic.Repository, node *data.Node) ([]*data.Node, error) {
 	if node.Type != "dir" || node.Subtree == nil {
-		return []*restic.Node{node}, nil
+		return []*data.Node{node}, nil
 	}
 
 	if node.Name != "." && node.Name != "/" {
-		return []*restic.Node{node}, nil
+		return []*data.Node{node}, nil
 	}
 
-	tree, err := restic.LoadTree(ctx, repo, *node.Subtree)
+	tree, err := data.LoadTree(ctx, repo, *node.Subtree)
 	if err != nil {
 		return nil, unwrapCtxCanceled(err)
 	}
@@ -74,11 +75,11 @@ func replaceSpecialNodes(ctx context.Context, repo restic.Repository, node *rest
 	return tree.Nodes, nil
 }
 
-func newDirFromSnapshot(root *Root, inode uint64, snapshot *restic.Snapshot) (*dir, error) {
+func newDirFromSnapshot(root *Root, inode uint64, snapshot *data.Snapshot) (*dir, error) {
 	debug.Log("new dir for snapshot %v (%v)", snapshot.ID(), snapshot.Tree)
 	return &dir{
 		root: root,
-		node: &restic.Node{
+		node: &data.Node{
 			AccessTime: snapshot.Time,
 			ModTime:    snapshot.Time,
 			ChangeTime: snapshot.Time,
@@ -99,12 +100,12 @@ func (d *dir) open(ctx context.Context) error {
 
 	debug.Log("open dir %v (%v)", d.node.Name, d.node.Subtree)
 
-	tree, err := restic.LoadTree(ctx, d.root.repo, *d.node.Subtree)
+	tree, err := data.LoadTree(ctx, d.root.repo, *d.node.Subtree)
 	if err != nil {
 		debug.Log("  error loading tree %v: %v", d.node.Subtree, err)
 		return unwrapCtxCanceled(err)
 	}
-	items := make(map[string]*restic.Node)
+	items := make(map[string]*data.Node)
 	for _, n := range tree.Nodes {
 		nodes, err := replaceSpecialNodes(ctx, d.root.repo, n)
 		if err != nil {

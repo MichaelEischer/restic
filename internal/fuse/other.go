@@ -7,16 +7,16 @@ import (
 	"context"
 
 	"bazil.org/fuse"
-	"github.com/restic/restic/internal/restic"
+	"github.com/restic/restic/internal/data"
 )
 
 type other struct {
 	root  *Root
-	node  *restic.Node
+	node  *data.Node
 	inode uint64
 }
 
-func newOther(root *Root, inode uint64, node *restic.Node) (*other, error) {
+func newOther(root *Root, inode uint64, node *data.Node) (*other, error) {
 	return &other{root: root, inode: inode, node: node}, nil
 }
 

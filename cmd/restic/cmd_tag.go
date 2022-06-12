@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/repository"
@@ -36,9 +37,9 @@ Exit status is 0 if the command was successful, and non-zero if there was any er
 // TagOptions bundles all options for the 'tag' command.
 type TagOptions struct {
 	snapshotFilterOptions
-	SetTags    restic.TagLists
-	AddTags    restic.TagLists
-	RemoveTags restic.TagLists
+	SetTags    data.TagLists
+	AddTags    data.TagLists
+	RemoveTags data.TagLists
 }
 
 var tagOptions TagOptions
@@ -53,7 +54,7 @@ func init() {
 	initMultiSnapshotFilterOptions(tagFlags, &tagOptions.snapshotFilterOptions, true)
 }
 
-func changeTags(ctx context.Context, repo *repository.Repository, sn *restic.Snapshot, setTags, addTags, removeTags []string) (bool, error) {
+func changeTags(ctx context.Context, repo *repository.Repository, sn *data.Snapshot, setTags, addTags, removeTags []string) (bool, error) {
 	var changed bool
 
 	if len(setTags) != 0 {
@@ -77,7 +78,7 @@ func changeTags(ctx context.Context, repo *repository.Repository, sn *restic.Sna
 		}
 
 		// Save the new snapshot.
-		id, err := restic.SaveSnapshot(ctx, repo, sn)
+		id, err := data.SaveSnapshot(ctx, repo, sn)
 		if err != nil {
 			return false, err
 		}
@@ -110,7 +111,7 @@ func runTag(ctx context.Context, opts TagOptions, gopts GlobalOptions, args []st
 
 	if !gopts.NoLock {
 		Verbosef("create exclusive lock for repository\n")
-		var lock *restic.Lock
+		var lock *data.Lock
 		lock, ctx, err = lockRepoExclusive(ctx, repo)
 		defer unlockRepo(lock)
 		if err != nil {

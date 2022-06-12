@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/restic"
 )
@@ -16,31 +17,31 @@ type lockContext struct {
 }
 
 var globalLocks struct {
-	locks map[*restic.Lock]*lockContext
+	locks map[*data.Lock]*lockContext
 	sync.Mutex
 	sync.Once
 }
 
-func lockRepo(ctx context.Context, repo restic.Repository) (*restic.Lock, context.Context, error) {
+func lockRepo(ctx context.Context, repo restic.Repository) (*data.Lock, context.Context, error) {
 	return lockRepository(ctx, repo, false)
 }
 
-func lockRepoExclusive(ctx context.Context, repo restic.Repository) (*restic.Lock, context.Context, error) {
+func lockRepoExclusive(ctx context.Context, repo restic.Repository) (*data.Lock, context.Context, error) {
 	return lockRepository(ctx, repo, true)
 }
 
 // lockRepository wraps the ctx such that it is cancelled when the repository is unlocked
 // cancelling the original context also stops the lock refresh
-func lockRepository(ctx context.Context, repo restic.Repository, exclusive bool) (*restic.Lock, context.Context, error) {
+func lockRepository(ctx context.Context, repo restic.Repository, exclusive bool) (*data.Lock, context.Context, error) {
 	// make sure that a repository is unlocked properly and after cancel() was
 	// called by the cleanup handler in global.go
 	globalLocks.Do(func() {
 		AddCleanupHandler(unlockAll)
 	})
 
-	lockFn := restic.NewLock
+	lockFn := data.NewLock
 	if exclusive {
-		lockFn = restic.NewExclusiveLock
+		lockFn = data.NewExclusiveLock
 	}
 
 	lock, err := lockFn(ctx, repo)
@@ -69,9 +70,9 @@ var refreshInterval = 5 * time.Minute
 
 // consider a lock refresh failed a bit before the lock actually becomes stale
 // the difference allows to compensate for a small time drift between clients.
-var refreshabilityTimeout = restic.StaleLockTimeout - refreshInterval*3/2
+var refreshabilityTimeout = data.StaleLockTimeout - refreshInterval*3/2
 
-func refreshLocks(ctx context.Context, lock *restic.Lock, lockInfo *lockContext, refreshed chan<- struct{}) {
+func refreshLocks(ctx context.Context, lock *data.Lock, lockInfo *lockContext, refreshed chan<- struct{}) {
 	debug.Log("start")
 	ticker := time.NewTicker(refreshInterval)
 	lastRefresh := lock.Time
@@ -118,7 +119,7 @@ func refreshLocks(ctx context.Context, lock *restic.Lock, lockInfo *lockContext,
 	}
 }
 
-func monitorLockRefresh(ctx context.Context, lock *restic.Lock, lockInfo *lockContext, refreshed <-chan struct{}) {
+func monitorLockRefresh(ctx context.Context, lock *data.Lock, lockInfo *lockContext, refreshed <-chan struct{}) {
 	// time.Now() might use a monotonic timer which is paused during standby
 	// convert to unix time to ensure we compare real time values
 	lastRefresh := time.Now().UnixNano()
@@ -157,7 +158,7 @@ func monitorLockRefresh(ctx context.Context, lock *restic.Lock, lockInfo *lockCo
 	}
 }
 
-func unlockRepo(lock *restic.Lock) {
+func unlockRepo(lock *data.Lock) {
 	if lock == nil {
 		return
 	}
@@ -182,7 +183,7 @@ func unlockAll(code int) (int, error) {
 	for _, lockInfo := range globalLocks.locks {
 		lockInfo.cancel()
 	}
-	globalLocks.locks = make(map[*restic.Lock]*lockContext)
+	globalLocks.locks = make(map[*data.Lock]*lockContext)
 	globalLocks.Unlock()
 
 	for _, lockInfo := range locks {
@@ -193,5 +194,5 @@ func unlockAll(code int) (int, error) {
 }
 
 func init() {
-	globalLocks.locks = make(map[*restic.Lock]*lockContext)
+	globalLocks.locks = make(map[*data.Lock]*lockContext)
 }

@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/repository"
 	"github.com/restic/restic/internal/restic"
 	rtest "github.com/restic/restic/internal/test"
@@ -120,7 +121,7 @@ func checkSnapshots(t testing.TB, global GlobalOptions, repo *repository.Reposit
 	}
 
 	for _, id := range snapshotIDs {
-		snapshot, err := restic.LoadSnapshot(context.TODO(), repo, id)
+		snapshot, err := data.LoadSnapshot(context.TODO(), repo, id)
 		rtest.OK(t, err)
 
 		ts := snapshot.Time.Format(time.RFC3339)

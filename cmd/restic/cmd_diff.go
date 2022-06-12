@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"sort"
 
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/repository"
@@ -53,8 +54,8 @@ func init() {
 	f.BoolVar(&diffOptions.ShowMetadata, "metadata", false, "print changes in metadata")
 }
 
-func loadSnapshot(ctx context.Context, repo restic.Repository, desc string) (*restic.Snapshot, error) {
-	sn, err := restic.FindSnapshot(ctx, repo, desc)
+func loadSnapshot(ctx context.Context, repo restic.Repository, desc string) (*data.Snapshot, error) {
+	sn, err := data.FindSnapshot(ctx, repo, desc)
 	if err != nil {
 		return nil, errors.Fatal(err.Error())
 	}
@@ -89,7 +90,7 @@ type DiffStat struct {
 }
 
 // Add adds stats information for node to s.
-func (s *DiffStat) Add(node *restic.Node) {
+func (s *DiffStat) Add(node *data.Node) {
 	if node == nil {
 		return
 	}
@@ -105,7 +106,7 @@ func (s *DiffStat) Add(node *restic.Node) {
 }
 
 // addBlobs adds the blobs of node to s.
-func addBlobs(bs restic.BlobSet, node *restic.Node) {
+func addBlobs(bs restic.BlobSet, node *data.Node) {
 	if node == nil {
 		return
 	}
@@ -160,7 +161,7 @@ func updateBlobs(repo restic.Repository, blobs restic.BlobSet, stats *DiffStat) 
 
 func (c *Comparer) printDir(ctx context.Context, mode string, stats *DiffStat, blobs restic.BlobSet, prefix string, id restic.ID) error {
 	debug.Log("print %v tree %v", mode, id)
-	tree, err := restic.LoadTree(ctx, c.repo, id)
+	tree, err := data.LoadTree(ctx, c.repo, id)
 	if err != nil {
 		return err
 	}
@@ -187,7 +188,7 @@ func (c *Comparer) printDir(ctx context.Context, mode string, stats *DiffStat, b
 
 func (c *Comparer) collectDir(ctx context.Context, blobs restic.BlobSet, id restic.ID) error {
 	debug.Log("print tree %v", id)
-	tree, err := restic.LoadTree(ctx, c.repo, id)
+	tree, err := data.LoadTree(ctx, c.repo, id)
 	if err != nil {
 		return err
 	}
@@ -206,15 +207,15 @@ func (c *Comparer) collectDir(ctx context.Context, blobs restic.BlobSet, id rest
 	return nil
 }
 
-func uniqueNodeNames(tree1, tree2 *restic.Tree) (tree1Nodes, tree2Nodes map[string]*restic.Node, uniqueNames []string) {
+func uniqueNodeNames(tree1, tree2 *data.Tree) (tree1Nodes, tree2Nodes map[string]*data.Node, uniqueNames []string) {
 	names := make(map[string]struct{})
-	tree1Nodes = make(map[string]*restic.Node)
+	tree1Nodes = make(map[string]*data.Node)
 	for _, node := range tree1.Nodes {
 		tree1Nodes[node.Name] = node
 		names[node.Name] = struct{}{}
 	}
 
-	tree2Nodes = make(map[string]*restic.Node)
+	tree2Nodes = make(map[string]*data.Node)
 	for _, node := range tree2.Nodes {
 		tree2Nodes[node.Name] = node
 		names[node.Name] = struct{}{}
@@ -231,12 +232,12 @@ func uniqueNodeNames(tree1, tree2 *restic.Tree) (tree1Nodes, tree2Nodes map[stri
 
 func (c *Comparer) diffTree(ctx context.Context, stats *DiffStatsContainer, prefix string, id1, id2 restic.ID) error {
 	debug.Log("diffing %v to %v", id1, id2)
-	tree1, err := restic.LoadTree(ctx, c.repo, id1)
+	tree1, err := data.LoadTree(ctx, c.repo, id1)
 	if err != nil {
 		return err
 	}
 
-	tree2, err := restic.LoadTree(ctx, c.repo, id2)
+	tree2, err := data.LoadTree(ctx, c.repo, id2)
 	if err != nil {
 		return err
 	}
@@ -333,7 +334,7 @@ func runDiff(ctx context.Context, opts DiffOptions, gopts GlobalOptions, args []
 	}
 
 	if !gopts.NoLock {
-		var lock *restic.Lock
+		var lock *data.Lock
 		lock, ctx, err = lockRepo(ctx, repo)
 		defer unlockRepo(lock)
 		if err != nil {

@@ -8,9 +8,9 @@ import (
 	"os"
 	"runtime"
 
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/options"
-	"github.com/restic/restic/internal/restic"
 
 	"github.com/spf13/cobra"
 
@@ -98,7 +98,7 @@ func main() {
 	err := cmdRoot.ExecuteContext(internalGlobalCtx)
 
 	switch {
-	case restic.IsAlreadyLocked(err):
+	case data.IsAlreadyLocked(err):
 		fmt.Fprintf(os.Stderr, "%v\nthe `unlock` command can be used to remove stale locks\n", err)
 	case err == ErrInvalidSourceData:
 		fmt.Fprintf(os.Stderr, "Warning: %v\n", err)

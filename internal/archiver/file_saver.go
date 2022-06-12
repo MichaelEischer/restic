@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/restic/chunker"
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/fs"
@@ -27,7 +28,7 @@ type FileSaver struct {
 
 	CompleteBlob func(bytes uint64)
 
-	NodeFromFileInfo func(snPath, filename string, fi os.FileInfo) (*restic.Node, error)
+	NodeFromFileInfo func(snPath, filename string, fi os.FileInfo) (*data.Node, error)
 }
 
 // NewFileSaver returns a new file saver. A worker pool with fileWorkers is
@@ -63,7 +64,7 @@ func (s *FileSaver) TriggerShutdown() {
 }
 
 // CompleteFunc is called when the file has been saved.
-type CompleteFunc func(*restic.Node, ItemStats)
+type CompleteFunc func(*data.Node, ItemStats)
 
 // Save stores the file f and returns the data once it has been completed. The
 // file is closed by Save.

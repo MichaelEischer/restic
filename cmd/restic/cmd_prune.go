@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/index"
@@ -750,8 +751,8 @@ func rebuildIndexFiles(ctx context.Context, gopts GlobalOptions, repo restic.Rep
 func getUsedBlobs(ctx context.Context, gopts GlobalOptions, repo restic.Repository, ignoreSnapshots restic.IDSet) (usedBlobs restic.BlobSet, err error) {
 	var snapshotTrees restic.IDs
 	Verbosef("loading all snapshots...\n")
-	err = restic.ForAllSnapshots(ctx, repo, ignoreSnapshots,
-		func(id restic.ID, sn *restic.Snapshot, err error) error {
+	err = data.ForAllSnapshots(ctx, repo, ignoreSnapshots,
+		func(id restic.ID, sn *data.Snapshot, err error) error {
 			if err != nil {
 				debug.Log("failed to load snapshot %v (error %v)", id, err)
 				return err
@@ -771,7 +772,7 @@ func getUsedBlobs(ctx context.Context, gopts GlobalOptions, repo restic.Reposito
 	bar := newProgressMax(!gopts.Quiet, uint64(len(snapshotTrees)), "snapshots")
 	defer bar.Done()
 
-	err = restic.FindUsedBlobs(ctx, repo, snapshotTrees, usedBlobs, bar)
+	err = data.FindUsedBlobs(ctx, repo, snapshotTrees, usedBlobs, bar)
 	if err != nil {
 		if repo.Backend().IsNotExist(err) {
 			return nil, errors.Fatal("unable to load a tree from the repository: " + err.Error())

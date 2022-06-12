@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/repository"
 	"github.com/restic/restic/internal/restic"
 	"github.com/spf13/pflag"
@@ -10,7 +11,7 @@ import (
 
 type snapshotFilterOptions struct {
 	Hosts []string
-	Tags  restic.TagLists
+	Tags  data.TagLists
 	Paths []string
 }
 
@@ -35,8 +36,8 @@ func initSingleSnapshotFilterOptions(flags *pflag.FlagSet, options *snapshotFilt
 }
 
 // FindFilteredSnapshots yields Snapshots, either given explicitly by `snapshotIDs` or filtered from the list of all snapshots.
-func FindFilteredSnapshots(ctx context.Context, repo restic.Repository, hosts []string, tags []restic.TagList, paths []string, snapshotIDs []string) <-chan *restic.Snapshot {
-	out := make(chan *restic.Snapshot)
+func FindFilteredSnapshots(ctx context.Context, repo restic.Repository, hosts []string, tags data.TagLists, paths []string, snapshotIDs []string) <-chan *data.Snapshot {
+	out := make(chan *data.Snapshot)
 	go func() {
 		defer close(out)
 		repo, err := repository.MemorizeList(ctx, repo, restic.SnapshotFile)
@@ -45,7 +46,7 @@ func FindFilteredSnapshots(ctx context.Context, repo restic.Repository, hosts []
 			return
 		}
 
-		err = restic.FindFilteredSnapshots(ctx, repo, hosts, tags, paths, snapshotIDs, func(id string, sn *restic.Snapshot, err error) error {
+		err = data.FindFilteredSnapshots(ctx, repo, hosts, tags, paths, snapshotIDs, func(id string, sn *data.Snapshot, err error) error {
 			if err != nil {
 				Warnf("Ignoring %q: %v\n", id, err)
 			} else {

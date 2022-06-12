@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/index"
 	"github.com/restic/restic/internal/restic"
@@ -42,7 +43,7 @@ func runList(ctx context.Context, cmd *cobra.Command, opts GlobalOptions, args [
 	}
 
 	if !opts.NoLock && args[0] != "locks" {
-		var lock *restic.Lock
+		var lock *data.Lock
 		lock, ctx, err = lockRepo(ctx, repo)
 		defer unlockRepo(lock)
 		if err != nil {

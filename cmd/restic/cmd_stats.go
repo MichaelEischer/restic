@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/restic/restic/internal/crypto"
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/repository"
 	"github.com/restic/restic/internal/restic"
 	"github.com/restic/restic/internal/walker"
@@ -82,7 +83,7 @@ func runStats(ctx context.Context, gopts GlobalOptions, args []string) error {
 	}
 
 	if !gopts.NoLock {
-		var lock *restic.Lock
+		var lock *data.Lock
 		lock, ctx, err = lockRepo(ctx, repo)
 		defer unlockRepo(lock)
 		if err != nil {
@@ -181,7 +182,7 @@ func runStats(ctx context.Context, gopts GlobalOptions, args []string) error {
 	return nil
 }
 
-func statsWalkSnapshot(ctx context.Context, snapshot *restic.Snapshot, repo restic.Repository, stats *statsContainer) error {
+func statsWalkSnapshot(ctx context.Context, snapshot *data.Snapshot, repo restic.Repository, stats *statsContainer) error {
 	if snapshot.Tree == nil {
 		return fmt.Errorf("snapshot %s has nil tree", snapshot.ID().Str())
 	}
@@ -191,7 +192,7 @@ func statsWalkSnapshot(ctx context.Context, snapshot *restic.Snapshot, repo rest
 	if statsOptions.countMode == countModeRawData {
 		// count just the sizes of unique blobs; we don't need to walk the tree
 		// ourselves in this case, since a nifty function does it for us
-		return restic.FindUsedBlobs(ctx, repo, restic.IDs{*snapshot.Tree}, stats.blobs, nil)
+		return data.FindUsedBlobs(ctx, repo, restic.IDs{*snapshot.Tree}, stats.blobs, nil)
 	}
 
 	uniqueInodes := make(map[uint64]struct{})
@@ -204,7 +205,7 @@ func statsWalkSnapshot(ctx context.Context, snapshot *restic.Snapshot, repo rest
 }
 
 func statsWalkTree(repo restic.Repository, stats *statsContainer, uniqueInodes map[uint64]struct{}) walker.WalkFunc {
-	return func(parentTreeID restic.ID, npath string, node *restic.Node, nodeErr error) (bool, error) {
+	return func(parentTreeID restic.ID, npath string, node *data.Node, nodeErr error) (bool, error) {
 		if nodeErr != nil {
 			return true, nodeErr
 		}
@@ -276,7 +277,7 @@ func statsWalkTree(repo restic.Repository, stats *statsContainer, uniqueInodes m
 
 // makeFileIDByContents returns a hash of the blob IDs of the
 // node's Content in sequence.
-func makeFileIDByContents(node *restic.Node) fileID {
+func makeFileIDByContents(node *data.Node) fileID {
 	var bb []byte
 	for _, c := range node.Content {
 		bb = append(bb, []byte(c[:])...)

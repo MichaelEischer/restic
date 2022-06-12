@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/fs"
 	"github.com/restic/restic/internal/repository"
@@ -65,14 +66,14 @@ func init() {
 }
 
 type lsSnapshot struct {
-	*restic.Snapshot
+	*data.Snapshot
 	ID         *restic.ID `json:"id"`
 	ShortID    string     `json:"short_id"`
 	StructType string     `json:"struct_type"` // "snapshot"
 }
 
 // Print node in our custom JSON format, followed by a newline.
-func lsNodeJSON(enc *json.Encoder, path string, node *restic.Node) error {
+func lsNodeJSON(enc *json.Encoder, path string, node *data.Node) error {
 	n := &struct {
 		Name        string      `json:"name"`
 		Type        string      `json:"type"`
@@ -177,14 +178,14 @@ func runLs(ctx context.Context, opts LsOptions, gopts GlobalOptions, args []stri
 	}
 
 	var (
-		printSnapshot func(sn *restic.Snapshot)
-		printNode     func(path string, node *restic.Node)
+		printSnapshot func(sn *data.Snapshot)
+		printNode     func(path string, node *data.Node)
 	)
 
 	if gopts.JSON {
 		enc := json.NewEncoder(gopts.stdout)
 
-		printSnapshot = func(sn *restic.Snapshot) {
+		printSnapshot = func(sn *data.Snapshot) {
 			err := enc.Encode(lsSnapshot{
 				Snapshot:   sn,
 				ID:         sn.ID(),
@@ -196,29 +197,29 @@ func runLs(ctx context.Context, opts LsOptions, gopts GlobalOptions, args []stri
 			}
 		}
 
-		printNode = func(path string, node *restic.Node) {
+		printNode = func(path string, node *data.Node) {
 			err := lsNodeJSON(enc, path, node)
 			if err != nil {
 				Warnf("JSON encode failed: %v\n", err)
 			}
 		}
 	} else {
-		printSnapshot = func(sn *restic.Snapshot) {
+		printSnapshot = func(sn *data.Snapshot) {
 			Verbosef("snapshot %s of %v filtered by %v at %s):\n", sn.ID().Str(), sn.Paths, dirs, sn.Time)
 		}
-		printNode = func(path string, node *restic.Node) {
+		printNode = func(path string, node *data.Node) {
 			Printf("%s\n", formatNode(path, node, lsOptions.ListLong))
 		}
 	}
 
-	sn, err := restic.FindFilteredSnapshot(ctx, repo, opts.Hosts, opts.Tags, opts.Paths, nil, args[0])
+	sn, err := data.FindFilteredSnapshot(ctx, repo, opts.Hosts, opts.Tags, opts.Paths, nil, args[0])
 	if err != nil {
 		return err
 	}
 
 	printSnapshot(sn)
 
-	err = walker.Walk(ctx, repo, *sn.Tree, nil, func(_ restic.ID, nodepath string, node *restic.Node, err error) (bool, error) {
+	err = walker.Walk(ctx, repo, *sn.Tree, nil, func(_ restic.ID, nodepath string, node *data.Node, err error) (bool, error) {
 		if err != nil {
 			return false, err
 		}

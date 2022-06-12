@@ -6,6 +6,7 @@ import (
 	"path"
 
 	"github.com/restic/restic/internal/bloblru"
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/restic"
 	"github.com/restic/restic/internal/walker"
@@ -29,12 +30,12 @@ func New(format string, repo restic.Repository, w io.Writer) *Dumper {
 	}
 }
 
-func (d *Dumper) DumpTree(ctx context.Context, tree *restic.Tree, rootPath string) error {
+func (d *Dumper) DumpTree(ctx context.Context, tree *data.Tree, rootPath string) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
 	// ch is buffered to deal with variable download/write speeds.
-	ch := make(chan *restic.Node, 10)
+	ch := make(chan *data.Node, 10)
 	go sendTrees(ctx, d.repo, tree, rootPath, ch)
 
 	switch d.format {
@@ -47,7 +48,7 @@ func (d *Dumper) DumpTree(ctx context.Context, tree *restic.Tree, rootPath strin
 	}
 }
 
-func sendTrees(ctx context.Context, repo restic.Repository, tree *restic.Tree, rootPath string, ch chan *restic.Node) {
+func sendTrees(ctx context.Context, repo restic.Repository, tree *data.Tree, rootPath string, ch chan *data.Node) {
 	defer close(ch)
 
 	for _, root := range tree.Nodes {
@@ -58,7 +59,7 @@ func sendTrees(ctx context.Context, repo restic.Repository, tree *restic.Tree, r
 	}
 }
 
-func sendNodes(ctx context.Context, repo restic.Repository, root *restic.Node, ch chan *restic.Node) error {
+func sendNodes(ctx context.Context, repo restic.Repository, root *data.Node, ch chan *data.Node) error {
 	select {
 	case ch <- root:
 	case <-ctx.Done():
@@ -70,7 +71,7 @@ func sendNodes(ctx context.Context, repo restic.Repository, root *restic.Node, c
 		return nil
 	}
 
-	err := walker.Walk(ctx, repo, *root.Subtree, nil, func(_ restic.ID, nodepath string, node *restic.Node, err error) (bool, error) {
+	err := walker.Walk(ctx, repo, *root.Subtree, nil, func(_ restic.ID, nodepath string, node *data.Node, err error) (bool, error) {
 		if err != nil {
 			return false, err
 		}
@@ -98,11 +99,11 @@ func sendNodes(ctx context.Context, repo restic.Repository, root *restic.Node, c
 
 // WriteNode writes a file node's contents directly to d's Writer,
 // without caring about d's format.
-func (d *Dumper) WriteNode(ctx context.Context, node *restic.Node) error {
+func (d *Dumper) WriteNode(ctx context.Context, node *data.Node) error {
 	return d.writeNode(ctx, d.w, node)
 }
 
-func (d *Dumper) writeNode(ctx context.Context, w io.Writer, node *restic.Node) error {
+func (d *Dumper) writeNode(ctx context.Context, w io.Writer, node *data.Node) error {
 	var (
 		buf []byte
 		err error
@@ -127,16 +128,16 @@ func (d *Dumper) writeNode(ctx context.Context, w io.Writer, node *restic.Node) 
 }
 
 // IsDir checks if the given node is a directory.
-func IsDir(node *restic.Node) bool {
+func IsDir(node *data.Node) bool {
 	return node.Type == "dir"
 }
 
 // IsLink checks if the given node as a link.
-func IsLink(node *restic.Node) bool {
+func IsLink(node *data.Node) bool {
 	return node.Type == "symlink"
 }
 
 // IsFile checks if the given node is a file.
-func IsFile(node *restic.Node) bool {
+func IsFile(node *data.Node) bool {
 	return node.Type == "file"
 }

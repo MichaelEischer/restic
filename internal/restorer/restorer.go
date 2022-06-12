@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"sync/atomic"
 
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/fs"
@@ -17,22 +18,22 @@ import (
 // Restorer is used to restore a snapshot to a directory.
 type Restorer struct {
 	repo   restic.Repository
-	sn     *restic.Snapshot
+	sn     *data.Snapshot
 	sparse bool
 
 	Error        func(location string, err error) error
-	SelectFilter func(item string, dstpath string, node *restic.Node) (selectedForRestore bool, childMayBeSelected bool)
+	SelectFilter func(item string, dstpath string, node *data.Node) (selectedForRestore bool, childMayBeSelected bool)
 }
 
 var restorerAbortOnAllErrors = func(location string, err error) error { return err }
 
 // NewRestorer creates a restorer preloaded with the content from the snapshot id.
-func NewRestorer(ctx context.Context, repo restic.Repository, sn *restic.Snapshot, sparse bool) *Restorer {
+func NewRestorer(ctx context.Context, repo restic.Repository, sn *data.Snapshot, sparse bool) *Restorer {
 	r := &Restorer{
 		repo:         repo,
 		sparse:       sparse,
 		Error:        restorerAbortOnAllErrors,
-		SelectFilter: func(string, string, *restic.Node) (bool, bool) { return true, true },
+		SelectFilter: func(string, string, *data.Node) (bool, bool) { return true, true },
 		sn:           sn,
 	}
 
@@ -40,16 +41,16 @@ func NewRestorer(ctx context.Context, repo restic.Repository, sn *restic.Snapsho
 }
 
 type treeVisitor struct {
-	enterDir  func(node *restic.Node, target, location string) error
-	visitNode func(node *restic.Node, target, location string) error
-	leaveDir  func(node *restic.Node, target, location string) error
+	enterDir  func(node *data.Node, target, location string) error
+	visitNode func(node *data.Node, target, location string) error
+	leaveDir  func(node *data.Node, target, location string) error
 }
 
 // traverseTree traverses a tree from the repo and calls treeVisitor.
 // target is the path in the file system, location within the snapshot.
 func (res *Restorer) traverseTree(ctx context.Context, target, location string, treeID restic.ID, visitor treeVisitor) (hasRestored bool, err error) {
 	debug.Log("%v %v %v", target, location, treeID)
-	tree, err := restic.LoadTree(ctx, res.repo, treeID)
+	tree, err := data.LoadTree(ctx, res.repo, treeID)
 	if err != nil {
 		debug.Log("error loading tree %v: %v", treeID, err)
 		return hasRestored, res.Error(location, err)
@@ -155,7 +156,7 @@ func (res *Restorer) traverseTree(ctx context.Context, target, location string, 
 	return hasRestored, nil
 }
 
-func (res *Restorer) restoreNodeTo(ctx context.Context, node *restic.Node, target, location string) error {
+func (res *Restorer) restoreNodeTo(ctx context.Context, node *data.Node, target, location string) error {
 	debug.Log("restoreNode %v %v %v", node.Name, target, location)
 
 	err := node.CreateAt(ctx, target, res.repo)
@@ -169,7 +170,7 @@ func (res *Restorer) restoreNodeTo(ctx context.Context, node *restic.Node, targe
 	return err
 }
 
-func (res *Restorer) restoreNodeMetadataTo(node *restic.Node, target, location string) error {
+func (res *Restorer) restoreNodeMetadataTo(node *data.Node, target, location string) error {
 	debug.Log("restoreNodeMetadata %v %v %v", node.Name, target, location)
 	err := node.RestoreMetadata(target)
 	if err != nil {
@@ -178,7 +179,7 @@ func (res *Restorer) restoreNodeMetadataTo(node *restic.Node, target, location s
 	return err
 }
 
-func (res *Restorer) restoreHardlinkAt(node *restic.Node, target, path, location string) error {
+func (res *Restorer) restoreHardlinkAt(node *data.Node, target, path, location string) error {
 	if err := fs.Remove(path); !os.IsNotExist(err) {
 		return errors.Wrap(err, "RemoveCreateHardlink")
 	}
@@ -190,7 +191,7 @@ func (res *Restorer) restoreHardlinkAt(node *restic.Node, target, path, location
 	return res.restoreNodeMetadataTo(node, path, location)
 }
 
-func (res *Restorer) restoreEmptyFileAt(node *restic.Node, target, location string) error {
+func (res *Restorer) restoreEmptyFileAt(node *data.Node, target, location string) error {
 	wr, err := os.OpenFile(target, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0600)
 	if err != nil {
 		return err
@@ -222,14 +223,14 @@ func (res *Restorer) RestoreTo(ctx context.Context, dst string) error {
 
 	// first tree pass: create directories and collect all files to restore
 	_, err = res.traverseTree(ctx, dst, string(filepath.Separator), *res.sn.Tree, treeVisitor{
-		enterDir: func(node *restic.Node, target, location string) error {
+		enterDir: func(node *data.Node, target, location string) error {
 			debug.Log("first pass, enterDir: mkdir %q, leaveDir should restore metadata", location)
 			// create dir with default permissions
 			// #leaveDir restores dir metadata after visiting all children
 			return fs.MkdirAll(target, 0700)
 		},
 
-		visitNode: func(node *restic.Node, target, location string) error {
+		visitNode: func(node *data.Node, target, location string) error {
 			debug.Log("first pass, visitNode: mkdir %q, leaveDir on second pass should restore metadata", location)
 			// create parent dir with default permissions
 			// second pass #leaveDir restores dir metadata after visiting/restoring all children
@@ -271,7 +272,7 @@ func (res *Restorer) RestoreTo(ctx context.Context, dst string) error {
 
 	// second tree pass: restore special files and filesystem metadata
 	_, err = res.traverseTree(ctx, dst, string(filepath.Separator), *res.sn.Tree, treeVisitor{
-		visitNode: func(node *restic.Node, target, location string) error {
+		visitNode: func(node *data.Node, target, location string) error {
 			debug.Log("second pass, visitNode: restore node %q", location)
 			if node.Type != "file" {
 				return res.restoreNodeTo(ctx, node, target, location)
@@ -297,7 +298,7 @@ func (res *Restorer) RestoreTo(ctx context.Context, dst string) error {
 }
 
 // Snapshot returns the snapshot this restorer is configured to use.
-func (res *Restorer) Snapshot() *restic.Snapshot {
+func (res *Restorer) Snapshot() *data.Snapshot {
 	return res.sn
 }
 
@@ -310,7 +311,7 @@ const nVerifyWorkers = 8
 // verified.
 func (res *Restorer) VerifyFiles(ctx context.Context, dst string) (int, error) {
 	type mustCheck struct {
-		node *restic.Node
+		node *data.Node
 		path string
 	}
 
@@ -326,7 +327,7 @@ func (res *Restorer) VerifyFiles(ctx context.Context, dst string) (int, error) {
 		defer close(work)
 
 		_, err := res.traverseTree(ctx, dst, string(filepath.Separator), *res.sn.Tree, treeVisitor{
-			visitNode: func(node *restic.Node, target, location string) error {
+			visitNode: func(node *data.Node, target, location string) error {
 				if node.Type != "file" {
 					return nil
 				}
@@ -366,7 +367,7 @@ func (res *Restorer) VerifyFiles(ctx context.Context, dst string) (int, error) {
 // buf and the first return value are scratch space, passed around for reuse.
 // Reusing buffers prevents the verifier goroutines allocating all of RAM and
 // flushing the filesystem cache (at least on Linux).
-func (res *Restorer) verifyFile(target string, node *restic.Node, buf []byte) ([]byte, error) {
+func (res *Restorer) verifyFile(target string, node *data.Node, buf []byte) ([]byte, error) {
 	f, err := os.Open(target)
 	if err != nil {
 		return buf, err

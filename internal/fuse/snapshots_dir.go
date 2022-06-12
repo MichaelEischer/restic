@@ -7,8 +7,8 @@ import (
 	"context"
 	"os"
 
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/debug"
-	"github.com/restic/restic/internal/restic"
 
 	"bazil.org/fuse"
 	"bazil.org/fuse/fs"
@@ -121,13 +121,13 @@ type snapshotLink struct {
 	root     *Root
 	inode    uint64
 	target   string
-	snapshot *restic.Snapshot
+	snapshot *data.Snapshot
 }
 
 var _ = fs.NodeReadlinker(&snapshotLink{})
 
 // newSnapshotLink
-func newSnapshotLink(root *Root, inode uint64, target string, snapshot *restic.Snapshot) (*snapshotLink, error) {
+func newSnapshotLink(root *Root, inode uint64, target string, snapshot *data.Snapshot) (*snapshotLink, error) {
 	return &snapshotLink{root: root, inode: inode, target: target, snapshot: snapshot}, nil
 }
 

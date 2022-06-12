@@ -7,6 +7,7 @@ import (
 	"path"
 	"path/filepath"
 
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/dump"
 	"github.com/restic/restic/internal/errors"
@@ -63,7 +64,7 @@ func splitPath(p string) []string {
 	return append(s, f)
 }
 
-func printFromTree(ctx context.Context, tree *restic.Tree, repo restic.Repository, prefix string, pathComponents []string, d *dump.Dumper) error {
+func printFromTree(ctx context.Context, tree *data.Tree, repo restic.Repository, prefix string, pathComponents []string, d *dump.Dumper) error {
 	// If we print / we need to assume that there are multiple nodes at that
 	// level in the tree.
 	if pathComponents[0] == "" {
@@ -83,7 +84,7 @@ func printFromTree(ctx context.Context, tree *restic.Tree, repo restic.Repositor
 			case l == 1 && dump.IsFile(node):
 				return d.WriteNode(ctx, node)
 			case l > 1 && dump.IsDir(node):
-				subtree, err := restic.LoadTree(ctx, repo, *node.Subtree)
+				subtree, err := data.LoadTree(ctx, repo, *node.Subtree)
 				if err != nil {
 					return errors.Wrapf(err, "cannot load subtree for %q", item)
 				}
@@ -92,7 +93,7 @@ func printFromTree(ctx context.Context, tree *restic.Tree, repo restic.Repositor
 				if err := checkStdoutArchive(); err != nil {
 					return err
 				}
-				subtree, err := restic.LoadTree(ctx, repo, *node.Subtree)
+				subtree, err := data.LoadTree(ctx, repo, *node.Subtree)
 				if err != nil {
 					return err
 				}
@@ -131,7 +132,7 @@ func runDump(ctx context.Context, opts DumpOptions, gopts GlobalOptions, args []
 	}
 
 	if !gopts.NoLock {
-		var lock *restic.Lock
+		var lock *data.Lock
 		lock, ctx, err = lockRepo(ctx, repo)
 		defer unlockRepo(lock)
 		if err != nil {
@@ -139,7 +140,7 @@ func runDump(ctx context.Context, opts DumpOptions, gopts GlobalOptions, args []
 		}
 	}
 
-	sn, err := restic.FindFilteredSnapshot(ctx, repo, opts.Paths, opts.Tags, opts.Hosts, nil, snapshotIDString)
+	sn, err := data.FindFilteredSnapshot(ctx, repo, opts.Paths, opts.Tags, opts.Hosts, nil, snapshotIDString)
 	if err != nil {
 		Exitf(1, "failed to find snapshot: %v", err)
 	}
@@ -149,7 +150,7 @@ func runDump(ctx context.Context, opts DumpOptions, gopts GlobalOptions, args []
 		return err
 	}
 
-	tree, err := restic.LoadTree(ctx, repo, *sn.Tree)
+	tree, err := data.LoadTree(ctx, repo, *sn.Tree)
 	if err != nil {
 		Exitf(2, "loading tree for snapshot %q failed: %v", snapshotIDString, err)
 	}

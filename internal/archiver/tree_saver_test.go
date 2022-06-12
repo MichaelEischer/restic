@@ -6,6 +6,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/restic"
 	"github.com/restic/restic/internal/test"
@@ -48,7 +49,7 @@ func TestTreeSaver(t *testing.T) {
 	var results []FutureNode
 
 	for i := 0; i < 20; i++ {
-		node := &restic.Node{
+		node := &data.Node{
 			Name: fmt.Sprintf("file-%d", i),
 		}
 
@@ -88,11 +89,11 @@ func TestTreeSaverError(t *testing.T) {
 			var results []FutureNode
 
 			for i := 0; i < test.trees; i++ {
-				node := &restic.Node{
+				node := &data.Node{
 					Name: fmt.Sprintf("file-%d", i),
 				}
 				nodes := []FutureNode{
-					newFutureNodeWithResult(futureNodeResult{node: &restic.Node{
+					newFutureNodeWithResult(futureNodeResult{node: &data.Node{
 						Name: fmt.Sprintf("child-%d", i),
 					}}),
 				}
@@ -127,20 +128,20 @@ func TestTreeSaverDuplicates(t *testing.T) {
 			ctx, cancel, b, shutdown := setupTreeSaver()
 			defer cancel()
 
-			node := &restic.Node{
+			node := &data.Node{
 				Name: "file",
 			}
 			nodes := []FutureNode{
-				newFutureNodeWithResult(futureNodeResult{node: &restic.Node{
+				newFutureNodeWithResult(futureNodeResult{node: &data.Node{
 					Name: "child",
 				}}),
 			}
 			if identicalNodes {
-				nodes = append(nodes, newFutureNodeWithResult(futureNodeResult{node: &restic.Node{
+				nodes = append(nodes, newFutureNodeWithResult(futureNodeResult{node: &data.Node{
 					Name: "child",
 				}}))
 			} else {
-				nodes = append(nodes, newFutureNodeWithResult(futureNodeResult{node: &restic.Node{
+				nodes = append(nodes, newFutureNodeWithResult(futureNodeResult{node: &data.Node{
 					Name: "child",
 					Size: 42,
 				}}))

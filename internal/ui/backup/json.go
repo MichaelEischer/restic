@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/restic/restic/internal/archiver"
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/restic"
 	"github.com/restic/restic/internal/ui"
 	"github.com/restic/restic/internal/ui/termstatus"
@@ -101,7 +102,7 @@ func (b *JSONProgress) Error(item string, err error) error {
 
 // CompleteItem is the status callback function for the archiver when a
 // file/dir has been saved successfully.
-func (b *JSONProgress) CompleteItem(messageType, item string, previous, current *restic.Node, s archiver.ItemStats, d time.Duration) {
+func (b *JSONProgress) CompleteItem(messageType, item string, previous, current *data.Node, s archiver.ItemStats, d time.Duration) {
 	if b.v < 2 {
 		return
 	}

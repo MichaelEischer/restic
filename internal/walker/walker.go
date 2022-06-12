@@ -7,6 +7,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/restic"
 )
 
@@ -28,13 +29,13 @@ var ErrSkipNode = errors.New("skip this node")
 // tree have ignore set to true, the current tree will not be visited again.
 // When err is not nil and different from ErrSkipNode, the value returned for
 // ignore is ignored.
-type WalkFunc func(parentTreeID restic.ID, path string, node *restic.Node, nodeErr error) (ignore bool, err error)
+type WalkFunc func(parentTreeID restic.ID, path string, node *data.Node, nodeErr error) (ignore bool, err error)
 
 // Walk calls walkFn recursively for each node in root. If walkFn returns an
 // error, it is passed up the call stack. The trees in ignoreTrees are not
 // walked. If walkFn ignores trees, these are added to the set.
-func Walk(ctx context.Context, repo restic.BlobLoader, root restic.ID, ignoreTrees restic.IDSet, walkFn WalkFunc) error {
-	tree, err := restic.LoadTree(ctx, repo, root)
+func Walk(ctx context.Context, repo data.BlobLoader, root restic.ID, ignoreTrees restic.IDSet, walkFn WalkFunc) error {
+	tree, err := data.LoadTree(ctx, repo, root)
 	_, err = walkFn(root, "/", nil, err)
 
 	if err != nil {
@@ -55,7 +56,7 @@ func Walk(ctx context.Context, repo restic.BlobLoader, root restic.ID, ignoreTre
 // walk recursively traverses the tree, ignoring subtrees when the ID of the
 // subtree is in ignoreTrees. If err is nil and ignore is true, the subtree ID
 // will be added to ignoreTrees by walk.
-func walk(ctx context.Context, repo restic.BlobLoader, prefix string, parentTreeID restic.ID, tree *restic.Tree, ignoreTrees restic.IDSet, walkFn WalkFunc) (ignore bool, err error) {
+func walk(ctx context.Context, repo data.BlobLoader, prefix string, parentTreeID restic.ID, tree *data.Tree, ignoreTrees restic.IDSet, walkFn WalkFunc) (ignore bool, err error) {
 	var allNodesIgnored = true
 
 	if len(tree.Nodes) == 0 {
@@ -99,7 +100,7 @@ func walk(ctx context.Context, repo restic.BlobLoader, prefix string, parentTree
 			continue
 		}
 
-		subtree, err := restic.LoadTree(ctx, repo, *node.Subtree)
+		subtree, err := data.LoadTree(ctx, repo, *node.Subtree)
 		ignore, err := walkFn(parentTreeID, p, node, err)
 		if err != nil {
 			if err == ErrSkipNode {

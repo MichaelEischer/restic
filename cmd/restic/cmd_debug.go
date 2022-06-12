@@ -22,6 +22,7 @@ import (
 
 	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/crypto"
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/index"
 	"github.com/restic/restic/internal/pack"
@@ -78,7 +79,7 @@ func prettyPrintJSON(wr io.Writer, item interface{}) error {
 }
 
 func debugPrintSnapshots(ctx context.Context, repo *repository.Repository, wr io.Writer) error {
-	return restic.ForAllSnapshots(ctx, repo, nil, func(id restic.ID, snapshot *restic.Snapshot, err error) error {
+	return data.ForAllSnapshots(ctx, repo, nil, func(id restic.ID, snapshot *data.Snapshot, err error) error {
 		if err != nil {
 			return err
 		}
@@ -155,7 +156,7 @@ func runDebugDump(ctx context.Context, gopts GlobalOptions, args []string) error
 	}
 
 	if !gopts.NoLock {
-		var lock *restic.Lock
+		var lock *data.Lock
 		lock, ctx, err = lockRepo(ctx, repo)
 		defer unlockRepo(lock)
 		if err != nil {
@@ -454,7 +455,7 @@ func runDebugExamine(ctx context.Context, gopts GlobalOptions, args []string) er
 	}
 
 	if !gopts.NoLock {
-		var lock *restic.Lock
+		var lock *data.Lock
 		lock, ctx, err = lockRepo(ctx, repo)
 		defer unlockRepo(lock)
 		if err != nil {

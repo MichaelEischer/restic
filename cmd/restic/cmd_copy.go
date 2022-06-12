@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/repository"
 	"github.com/restic/restic/internal/restic"
@@ -73,7 +74,7 @@ func runCopy(ctx context.Context, opts CopyOptions, gopts GlobalOptions, args []
 	}
 
 	if !gopts.NoLock {
-		var srcLock *restic.Lock
+		var srcLock *data.Lock
 		srcLock, ctx, err = lockRepo(ctx, srcRepo)
 		defer unlockRepo(srcLock)
 		if err != nil {
@@ -107,7 +108,7 @@ func runCopy(ctx context.Context, opts CopyOptions, gopts GlobalOptions, args []
 		return err
 	}
 
-	dstSnapshotByOriginal := make(map[restic.ID][]*restic.Snapshot)
+	dstSnapshotByOriginal := make(map[restic.ID][]*data.Snapshot)
 	for sn := range FindFilteredSnapshots(ctx, dstRepo, opts.Hosts, opts.Tags, opts.Paths, nil) {
 		if sn.Original != nil && !sn.Original.IsNull() {
 			dstSnapshotByOriginal[*sn.Original] = append(dstSnapshotByOriginal[*sn.Original], sn)
@@ -152,7 +153,7 @@ func runCopy(ctx context.Context, opts CopyOptions, gopts GlobalOptions, args []
 		if sn.Original == nil {
 			sn.Original = sn.ID()
 		}
-		newID, err := restic.SaveSnapshot(ctx, dstRepo, sn)
+		newID, err := data.SaveSnapshot(ctx, dstRepo, sn)
 		if err != nil {
 			return err
 		}
@@ -161,7 +162,7 @@ func runCopy(ctx context.Context, opts CopyOptions, gopts GlobalOptions, args []
 	return nil
 }
 
-func similarSnapshots(sna *restic.Snapshot, snb *restic.Snapshot) bool {
+func similarSnapshots(sna *data.Snapshot, snb *data.Snapshot) bool {
 	// everything except Parent and Original must match
 	if !sna.Time.Equal(snb.Time) || !sna.Tree.Equal(*snb.Tree) || sna.Hostname != snb.Hostname ||
 		sna.Username != snb.Username || sna.UID != snb.UID || sna.GID != snb.GID ||
@@ -185,7 +186,7 @@ func copyTree(ctx context.Context, srcRepo restic.Repository, dstRepo restic.Rep
 
 	wg, wgCtx := errgroup.WithContext(ctx)
 
-	treeStream := restic.StreamTrees(wgCtx, wg, srcRepo, restic.IDs{rootTreeID}, func(treeID restic.ID) bool {
+	treeStream := data.StreamTrees(wgCtx, wg, srcRepo, restic.IDs{rootTreeID}, func(treeID restic.ID) bool {
 		visited := visitedTrees.Has(treeID)
 		visitedTrees.Insert(treeID)
 		return visited

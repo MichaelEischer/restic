@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/restic"
 	"golang.org/x/sync/errgroup"
@@ -42,7 +43,7 @@ func (s *TreeSaver) TriggerShutdown() {
 }
 
 // Save stores the dir d and returns the data once it has been completed.
-func (s *TreeSaver) Save(ctx context.Context, snPath string, target string, node *restic.Node, nodes []FutureNode, complete CompleteFunc) FutureNode {
+func (s *TreeSaver) Save(ctx context.Context, snPath string, target string, node *data.Node, nodes []FutureNode, complete CompleteFunc) FutureNode {
 	fn, ch := newFutureNode()
 	job := saveTreeJob{
 		snPath:   snPath,
@@ -65,22 +66,22 @@ func (s *TreeSaver) Save(ctx context.Context, snPath string, target string, node
 type saveTreeJob struct {
 	snPath   string
 	target   string
-	node     *restic.Node
+	node     *data.Node
 	nodes    []FutureNode
 	ch       chan<- futureNodeResult
 	complete CompleteFunc
 }
 
 // save stores the nodes as a tree in the repo.
-func (s *TreeSaver) save(ctx context.Context, job *saveTreeJob) (*restic.Node, ItemStats, error) {
+func (s *TreeSaver) save(ctx context.Context, job *saveTreeJob) (*data.Node, ItemStats, error) {
 	var stats ItemStats
 	node := job.node
 	nodes := job.nodes
 	// allow GC of nodes array once the loop is finished
 	job.nodes = nil
 
-	builder := restic.NewTreeJSONBuilder()
-	var lastNode *restic.Node
+	builder := data.NewTreeJSONBuilder()
+	var lastNode *data.Node
 
 	for i, fn := range nodes {
 		// fn is a copy, so clear the original value explicitly
@@ -107,7 +108,7 @@ func (s *TreeSaver) save(ctx context.Context, job *saveTreeJob) (*restic.Node, I
 
 		debug.Log("insert %v", fnr.node.Name)
 		err := builder.AddNode(fnr.node)
-		if err != nil && errors.Is(err, restic.ErrTreeNotOrdered) && lastNode != nil && fnr.node.Equals(*lastNode) {
+		if err != nil && errors.Is(err, data.ErrTreeNotOrdered) && lastNode != nil && fnr.node.Equals(*lastNode) {
 			// ignore error if an _identical_ node already exists, but nevertheless issue a warning
 			_ = s.errFn(fnr.target, err)
 			err = nil

@@ -20,6 +20,7 @@ import (
 	"golang.org/x/sync/errgroup"
 
 	"github.com/restic/restic/internal/archiver"
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/fs"
@@ -88,7 +89,7 @@ type BackupOptions struct {
 	ExcludeLargerThan string
 	Stdin             bool
 	StdinFilename     string
-	Tags              restic.TagLists
+	Tags              data.TagLists
 	Host              string
 	FilesFrom         []string
 	FilesFromVerbatim []string
@@ -416,7 +417,7 @@ func collectTargets(opts BackupOptions, args []string) (targets []string, err er
 
 // parent returns the ID of the parent snapshot. If there is none, nil is
 // returned.
-func findParentSnapshot(ctx context.Context, repo restic.Repository, opts BackupOptions, targets []string, timeStampLimit time.Time) (*restic.Snapshot, error) {
+func findParentSnapshot(ctx context.Context, repo restic.Repository, opts BackupOptions, targets []string, timeStampLimit time.Time) (*data.Snapshot, error) {
 	if opts.Force {
 		return nil, nil
 	}
@@ -425,9 +426,9 @@ func findParentSnapshot(ctx context.Context, repo restic.Repository, opts Backup
 	if snName == "" {
 		snName = "latest"
 	}
-	sn, err := restic.FindFilteredSnapshot(ctx, repo, []string{opts.Host}, []restic.TagList{}, targets, &timeStampLimit, snName)
+	sn, err := data.FindFilteredSnapshot(ctx, repo, []string{opts.Host}, []data.TagList{}, targets, &timeStampLimit, snName)
 	// Snapshot not found is ok if no explicit parent was set
-	if opts.Parent == "" && errors.Is(err, restic.ErrNoSnapshotFound) {
+	if opts.Parent == "" && errors.Is(err, data.ErrNoSnapshotFound) {
 		err = nil
 	}
 	return sn, err
@@ -509,7 +510,7 @@ func runBackup(ctx context.Context, opts BackupOptions, gopts GlobalOptions, ter
 		return err
 	}
 
-	var parentSnapshot *restic.Snapshot
+	var parentSnapshot *data.Snapshot
 	if !opts.Stdin {
 		parentSnapshot, err = findParentSnapshot(ctx, repo, opts, targets, timeStamp)
 		if err != nil {

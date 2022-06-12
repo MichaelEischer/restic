@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/filter"
@@ -107,13 +108,13 @@ type statefulOutput struct {
 	ListLong bool
 	JSON     bool
 	inuse    bool
-	newsn    *restic.Snapshot
-	oldsn    *restic.Snapshot
+	newsn    *data.Snapshot
+	oldsn    *data.Snapshot
 	hits     int
 }
 
-func (s *statefulOutput) PrintPatternJSON(path string, node *restic.Node) {
-	type findNode restic.Node
+func (s *statefulOutput) PrintPatternJSON(path string, node *data.Node) {
+	type findNode data.Node
 	b, err := json.Marshal(struct {
 		// Add these attributes
 		Path        string `json:"path,omitempty"`
@@ -156,7 +157,7 @@ func (s *statefulOutput) PrintPatternJSON(path string, node *restic.Node) {
 	s.hits++
 }
 
-func (s *statefulOutput) PrintPatternNormal(path string, node *restic.Node) {
+func (s *statefulOutput) PrintPatternNormal(path string, node *data.Node) {
 	if s.newsn != s.oldsn {
 		if s.oldsn != nil {
 			Verbosef("\n")
@@ -167,7 +168,7 @@ func (s *statefulOutput) PrintPatternNormal(path string, node *restic.Node) {
 	Println(formatNode(path, node, s.ListLong))
 }
 
-func (s *statefulOutput) PrintPattern(path string, node *restic.Node) {
+func (s *statefulOutput) PrintPattern(path string, node *data.Node) {
 	if s.JSON {
 		s.PrintPatternJSON(path, node)
 	} else {
@@ -175,7 +176,7 @@ func (s *statefulOutput) PrintPattern(path string, node *restic.Node) {
 	}
 }
 
-func (s *statefulOutput) PrintObjectJSON(kind, id, nodepath, treeID string, sn *restic.Snapshot) {
+func (s *statefulOutput) PrintObjectJSON(kind, id, nodepath, treeID string, sn *data.Snapshot) {
 	b, err := json.Marshal(struct {
 		// Add these attributes
 		ObjectType string    `json:"object_type"`
@@ -207,7 +208,7 @@ func (s *statefulOutput) PrintObjectJSON(kind, id, nodepath, treeID string, sn *
 	s.hits++
 }
 
-func (s *statefulOutput) PrintObjectNormal(kind, id, nodepath, treeID string, sn *restic.Snapshot) {
+func (s *statefulOutput) PrintObjectNormal(kind, id, nodepath, treeID string, sn *data.Snapshot) {
 	Printf("Found %s %s\n", kind, id)
 	if kind == "blob" {
 		Printf(" ... in file %s\n", nodepath)
@@ -218,7 +219,7 @@ func (s *statefulOutput) PrintObjectNormal(kind, id, nodepath, treeID string, sn
 	Printf(" ... in snapshot %s (%s)\n", sn.ID().Str(), sn.Time.Local().Format(TimeFormat))
 }
 
-func (s *statefulOutput) PrintObject(kind, id, nodepath, treeID string, sn *restic.Snapshot) {
+func (s *statefulOutput) PrintObject(kind, id, nodepath, treeID string, sn *data.Snapshot) {
 	if s.JSON {
 		s.PrintObjectJSON(kind, id, nodepath, treeID, sn)
 	} else {
@@ -252,7 +253,7 @@ type Finder struct {
 	itemsFound  int
 }
 
-func (f *Finder) findInSnapshot(ctx context.Context, sn *restic.Snapshot) error {
+func (f *Finder) findInSnapshot(ctx context.Context, sn *data.Snapshot) error {
 	debug.Log("searching in snapshot %s\n  for entries within [%s %s]", sn.ID(), f.pat.oldest, f.pat.newest)
 
 	if sn.Tree == nil {
@@ -260,7 +261,7 @@ func (f *Finder) findInSnapshot(ctx context.Context, sn *restic.Snapshot) error 
 	}
 
 	f.out.newsn = sn
-	return walker.Walk(ctx, f.repo, *sn.Tree, f.ignoreTrees, func(parentTreeID restic.ID, nodepath string, node *restic.Node, err error) (bool, error) {
+	return walker.Walk(ctx, f.repo, *sn.Tree, f.ignoreTrees, func(parentTreeID restic.ID, nodepath string, node *data.Node, err error) (bool, error) {
 		if err != nil {
 			debug.Log("Error loading tree %v: %v", parentTreeID, err)
 
@@ -336,7 +337,7 @@ func (f *Finder) findInSnapshot(ctx context.Context, sn *restic.Snapshot) error 
 	})
 }
 
-func (f *Finder) findIDs(ctx context.Context, sn *restic.Snapshot) error {
+func (f *Finder) findIDs(ctx context.Context, sn *data.Snapshot) error {
 	debug.Log("searching IDs in snapshot %s", sn.ID())
 
 	if sn.Tree == nil {
@@ -344,7 +345,7 @@ func (f *Finder) findIDs(ctx context.Context, sn *restic.Snapshot) error {
 	}
 
 	f.out.newsn = sn
-	return walker.Walk(ctx, f.repo, *sn.Tree, f.ignoreTrees, func(parentTreeID restic.ID, nodepath string, node *restic.Node, err error) (bool, error) {
+	return walker.Walk(ctx, f.repo, *sn.Tree, f.ignoreTrees, func(parentTreeID restic.ID, nodepath string, node *data.Node, err error) (bool, error) {
 		if err != nil {
 			debug.Log("Error loading tree %v: %v", parentTreeID, err)
 
@@ -575,7 +576,7 @@ func runFind(ctx context.Context, opts FindOptions, gopts GlobalOptions, args []
 	}
 
 	if !gopts.NoLock {
-		var lock *restic.Lock
+		var lock *data.Lock
 		lock, ctx, err = lockRepo(ctx, repo)
 		defer unlockRepo(lock)
 		if err != nil {

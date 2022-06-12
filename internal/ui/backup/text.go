@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/restic/restic/internal/archiver"
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/restic"
 	"github.com/restic/restic/internal/ui"
 	"github.com/restic/restic/internal/ui/termstatus"
@@ -134,7 +135,7 @@ func formatBytes(c uint64) string {
 
 // CompleteItem is the status callback function for the archiver when a
 // file/dir has been saved successfully.
-func (b *TextProgress) CompleteItem(messageType, item string, previous, current *restic.Node, s archiver.ItemStats, d time.Duration) {
+func (b *TextProgress) CompleteItem(messageType, item string, previous, current *data.Node, s archiver.ItemStats, d time.Duration) {
 	switch messageType {
 	case "dir new":
 		b.VV("new       %v, saved in %.3fs (%v added, %v stored, %v metadata)", item, d.Seconds(), formatBytes(s.DataSize), formatBytes(s.DataSizeInRepo), formatBytes(s.TreeSizeInRepo))

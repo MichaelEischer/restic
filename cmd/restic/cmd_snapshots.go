@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/restic"
 	"github.com/restic/restic/internal/ui/table"
 	"github.com/spf13/cobra"
@@ -64,7 +65,7 @@ func runSnapshots(ctx context.Context, opts SnapshotOptions, gopts GlobalOptions
 	}
 
 	if !gopts.NoLock {
-		var lock *restic.Lock
+		var lock *data.Lock
 		lock, ctx, err = lockRepo(ctx, repo)
 		defer unlockRepo(lock)
 		if err != nil {
@@ -72,11 +73,11 @@ func runSnapshots(ctx context.Context, opts SnapshotOptions, gopts GlobalOptions
 		}
 	}
 
-	var snapshots restic.Snapshots
+	var snapshots data.Snapshots
 	for sn := range FindFilteredSnapshots(ctx, repo, opts.Hosts, opts.Tags, opts.Paths, args) {
 		snapshots = append(snapshots, sn)
 	}
-	snapshotGroups, grouped, err := restic.GroupSnapshots(snapshots, opts.GroupBy)
+	snapshotGroups, grouped, err := data.GroupSnapshots(snapshots, opts.GroupBy)
 	if err != nil {
 		return err
 	}
@@ -122,7 +123,7 @@ type filterLastSnapshotsKey struct {
 }
 
 // newFilterLastSnapshotsKey initializes a filterLastSnapshotsKey from a Snapshot
-func newFilterLastSnapshotsKey(sn *restic.Snapshot) filterLastSnapshotsKey {
+func newFilterLastSnapshotsKey(sn *data.Snapshot) filterLastSnapshotsKey {
 	// Shallow slice copy
 	var paths = make([]string, len(sn.Paths))
 	copy(paths, sn.Paths)
@@ -134,13 +135,13 @@ func newFilterLastSnapshotsKey(sn *restic.Snapshot) filterLastSnapshotsKey {
 // the limit last entries for each hostname and path. If the snapshot
 // contains multiple paths, they will be joined and treated as one
 // item.
-func FilterLastestSnapshots(list restic.Snapshots, limit int) restic.Snapshots {
+func FilterLastestSnapshots(list data.Snapshots, limit int) data.Snapshots {
 	// Sort the snapshots so that the newer ones are listed first
 	sort.SliceStable(list, func(i, j int) bool {
 		return list[i].Time.After(list[j].Time)
 	})
 
-	var results restic.Snapshots
+	var results data.Snapshots
 	seen := make(map[filterLastSnapshotsKey]int)
 	for _, sn := range list {
 		key := newFilterLastSnapshotsKey(sn)
@@ -153,10 +154,10 @@ func FilterLastestSnapshots(list restic.Snapshots, limit int) restic.Snapshots {
 }
 
 // PrintSnapshots prints a text table of the snapshots in list to stdout.
-func PrintSnapshots(stdout io.Writer, list restic.Snapshots, reasons []restic.KeepReason, compact bool) {
+func PrintSnapshots(stdout io.Writer, list data.Snapshots, reasons []data.KeepReason, compact bool) {
 	// keep the reasons a snasphot is being kept in a map, so that it doesn't
 	// get lost when the list of snapshots is sorted
-	keepReasons := make(map[restic.ID]restic.KeepReason, len(reasons))
+	keepReasons := make(map[restic.ID]data.KeepReason, len(reasons))
 	if len(reasons) > 0 {
 		for i, sn := range list {
 			id := sn.ID()
@@ -259,7 +260,7 @@ func PrintSnapshots(stdout io.Writer, list restic.Snapshots, reasons []restic.Ke
 // following snapshots belong to.
 // Prints nothing, if we did not group at all.
 func PrintSnapshotGroupHeader(stdout io.Writer, groupKeyJSON string) error {
-	var key restic.SnapshotGroupKey
+	var key data.SnapshotGroupKey
 
 	err := json.Unmarshal([]byte(groupKeyJSON), &key)
 	if err != nil {
@@ -292,7 +293,7 @@ func PrintSnapshotGroupHeader(stdout io.Writer, groupKeyJSON string) error {
 
 // Snapshot helps to print Snaphots as JSON with their ID included.
 type Snapshot struct {
-	*restic.Snapshot
+	*data.Snapshot
 
 	ID      *restic.ID `json:"id"`
 	ShortID string     `json:"short_id"`
@@ -300,17 +301,17 @@ type Snapshot struct {
 
 // SnapshotGroup helps to print SnaphotGroups as JSON with their GroupReasons included.
 type SnapshotGroup struct {
-	GroupKey  restic.SnapshotGroupKey `json:"group_key"`
-	Snapshots []Snapshot              `json:"snapshots"`
+	GroupKey  data.SnapshotGroupKey `json:"group_key"`
+	Snapshots []Snapshot            `json:"snapshots"`
 }
 
 // printSnapshotsJSON writes the JSON representation of list to stdout.
-func printSnapshotGroupJSON(stdout io.Writer, snGroups map[string]restic.Snapshots, grouped bool) error {
+func printSnapshotGroupJSON(stdout io.Writer, snGroups map[string]data.Snapshots, grouped bool) error {
 	if grouped {
 		snapshotGroups := []SnapshotGroup{}
 
 		for k, list := range snGroups {
-			var key restic.SnapshotGroupKey
+			var key data.SnapshotGroupKey
 			var err error
 			var snapshots []Snapshot
 

@@ -7,21 +7,21 @@ import (
 	"testing"
 	"time"
 
-	"github.com/restic/restic/internal/restic"
+	"github.com/restic/restic/internal/data"
 	rtest "github.com/restic/restic/internal/test"
 )
 
 func TestLsNodeJSON(t *testing.T) {
 	for _, c := range []struct {
 		path string
-		restic.Node
+		data.Node
 		expect string
 	}{
 		// Mode is omitted when zero.
 		// Permissions, by convention is "-" per mode bit
 		{
 			path: "/bar/baz",
-			Node: restic.Node{
+			Node: data.Node{
 				Name: "baz",
 				Type: "file",
 				Size: 12345,
@@ -38,7 +38,7 @@ func TestLsNodeJSON(t *testing.T) {
 		// Even empty files get an explicit size.
 		{
 			path: "/foo/empty",
-			Node: restic.Node{
+			Node: data.Node{
 				Name: "empty",
 				Type: "file",
 				Size: 0,
@@ -56,7 +56,7 @@ func TestLsNodeJSON(t *testing.T) {
 		// Mode is printed in decimal, including the type bits.
 		{
 			path: "/foo/link",
-			Node: restic.Node{
+			Node: data.Node{
 				Name:       "link",
 				Type:       "symlink",
 				Mode:       os.ModeSymlink | 0777,
@@ -67,7 +67,7 @@ func TestLsNodeJSON(t *testing.T) {
 
 		{
 			path: "/some/directory",
-			Node: restic.Node{
+			Node: data.Node{
 				Name:       "directory",
 				Type:       "dir",
 				Mode:       os.ModeDir | 0755,
