@@ -158,7 +158,7 @@ func repack(t *testing.T, repo restic.Repository, packs restic.IDSet, blobs rest
 	}
 
 	for id := range repackedBlobs {
-		err = repo.Backend().Remove(context.TODO(), backend.Handle{Type: backend.PackFile, Name: id.String()})
+		err = repo.Remove(context.TODO(), backend.PackFile, id)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -192,11 +192,7 @@ func rebuildIndex(t *testing.T, repo restic.Repository) {
 	}
 
 	err = repo.List(context.TODO(), backend.IndexFile, func(id restic.ID, size int64) error {
-		h := backend.Handle{
-			Type: backend.IndexFile,
-			Name: id.String(),
-		}
-		return repo.Backend().Remove(context.TODO(), h)
+		return repo.Remove(context.TODO(), backend.IndexFile, id)
 	})
 	if err != nil {
 		t.Fatal(err)

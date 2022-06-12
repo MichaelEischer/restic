@@ -316,33 +316,15 @@ func decryptUnsigned(ctx context.Context, k *crypto.Key, buf []byte) []byte {
 	return out
 }
 
-func loadBlobs(ctx context.Context, repo restic.Repository, packID restic.ID, list []restic.Blob) error {
+func loadBlobs(ctx context.Context, repo restic.Repository, data []byte, list []restic.Blob) error {
 	dec, err := zstd.NewReader(nil)
 	if err != nil {
 		panic(err)
 	}
-	be := repo.Backend()
-	h := backend.Handle{
-		Name: packID.String(),
-		Type: backend.PackFile,
-	}
+	key := repo.Key()
 	for _, blob := range list {
 		Printf("      loading blob %v at %v (length %v)\n", blob.ID, blob.Offset, blob.Length)
-		buf := make([]byte, blob.Length)
-		err := be.Load(ctx, h, int(blob.Length), int64(blob.Offset), func(rd io.Reader) error {
-			n, err := io.ReadFull(rd, buf)
-			if err != nil {
-				return fmt.Errorf("read error after %d bytes: %v", n, err)
-			}
-			return nil
-		})
-		if err != nil {
-			Warnf("error read: %v\n", err)
-			continue
-		}
-
-		key := repo.Key()
-
+		buf := data[blob.Offset : blob.Offset+blob.Length]
 		nonce, plaintext := buf[:key.NonceSize()], buf[key.NonceSize():]
 		plaintext, err = key.Open(plaintext[:0], nonce, plaintext, nil)
 		outputPrefix := ""
@@ -517,7 +499,7 @@ func examinePack(ctx context.Context, repo restic.Repository, id restic.ID) erro
 
 		checkPackSize(blobs, fi.Size)
 
-		err = loadBlobs(ctx, repo, id, blobs)
+		err = loadBlobs(ctx, repo, buf, blobs)
 		if err != nil {
 			Warnf("error: %v\n", err)
 		} else {
@@ -535,7 +517,7 @@ func examinePack(ctx context.Context, repo restic.Repository, id restic.ID) erro
 	checkPackSize(blobs, fi.Size)
 
 	if !blobsLoaded {
-		return loadBlobs(ctx, repo, id, blobs)
+		return loadBlobs(ctx, repo, buf, blobs)
 	}
 	return nil
 }

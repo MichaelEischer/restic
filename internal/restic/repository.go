@@ -34,6 +34,7 @@ type Repository interface {
 	//
 	// The function fn is called in the same Goroutine List() was called from.
 	List(ctx context.Context, t backend.FileType, fn func(ID, int64) error) error
+	Remove(ctx context.Context, t backend.FileType, id ID) error
 
 	// ListPack returns the list of blobs saved in the pack id and the length of
 	// the the pack header.

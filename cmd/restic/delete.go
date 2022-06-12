@@ -47,7 +47,7 @@ func deleteFiles(ctx context.Context, gopts GlobalOptions, ignoreError bool, rep
 		wg.Go(func() error {
 			for id := range fileChan {
 				h := backend.Handle{Type: fileType, Name: id.String()}
-				err := repo.Backend().Remove(ctx, h)
+				err := repo.Remove(ctx, fileType, id)
 				if err != nil {
 					if !gopts.JSON {
 						Warnf("unable to remove %v from the repository\n", h)

@@ -86,8 +86,7 @@ func changeTags(ctx context.Context, repo *repository.Repository, sn *data.Snaps
 		debug.Log("new snapshot saved as %v", id)
 
 		// Remove the old snapshot.
-		h := backend.Handle{Type: backend.SnapshotFile, Name: sn.ID().String()}
-		if err = repo.Backend().Remove(ctx, h); err != nil {
+		if err = repo.Remove(ctx, backend.SnapshotFile, *sn.ID()); err != nil {
 			return false, err
 		}
 

@@ -188,7 +188,7 @@ func (l *Lock) Unlock() error {
 		return nil
 	}
 
-	return l.repo.Backend().Remove(context.TODO(), backend.Handle{Type: backend.LockFile, Name: l.lockID.String()})
+	return l.repo.Remove(context.TODO(), backend.LockFile, *l.lockID)
 }
 
 var StaleLockTimeout = 30 * time.Minute
@@ -241,7 +241,7 @@ func (l *Lock) Refresh(ctx context.Context) error {
 	oldLockID := l.lockID
 	l.lockID = &id
 
-	return l.repo.Backend().Remove(context.TODO(), backend.Handle{Type: backend.LockFile, Name: oldLockID.String()})
+	return l.repo.Remove(context.TODO(), backend.LockFile, *oldLockID)
 }
 
 func (l Lock) String() string {
@@ -290,7 +290,7 @@ func RemoveStaleLocks(ctx context.Context, repo restic.Repository) (uint, error)
 		}
 
 		if lock.Stale() {
-			err = repo.Backend().Remove(ctx, backend.Handle{Type: backend.LockFile, Name: id.String()})
+			err = repo.Remove(ctx, backend.LockFile, id)
 			if err == nil {
 				processed++
 			}
@@ -306,7 +306,7 @@ func RemoveStaleLocks(ctx context.Context, repo restic.Repository) (uint, error)
 func RemoveAllLocks(ctx context.Context, repo restic.Repository) (uint, error) {
 	var processed uint32
 	err := restic.ParallelList(ctx, repo, backend.LockFile, repo.Connections(), func(ctx context.Context, id restic.ID, size int64) error {
-		err := repo.Backend().Remove(ctx, backend.Handle{Type: backend.LockFile, Name: id.String()})
+		err := repo.Remove(ctx, backend.LockFile, id)
 		if err == nil {
 			atomic.AddUint32(&processed, 1)
 		}

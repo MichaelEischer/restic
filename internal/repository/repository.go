@@ -787,12 +787,16 @@ func (r *Repository) List(ctx context.Context, t backend.FileType, fn func(resti
 	})
 }
 
+func (r *Repository) Remove(ctx context.Context, t backend.FileType, id restic.ID) error {
+	return r.be.Remove(ctx, backend.Handle{Type: t, Name: id.String()})
+}
+
 // ListPack returns the list of blobs saved in the pack id and the length of
 // the the pack header.
 func (r *Repository) ListPack(ctx context.Context, id restic.ID, size int64) ([]restic.Blob, uint32, error) {
 	h := backend.Handle{Type: backend.PackFile, Name: id.String()}
 
-	return pack.List(r.Key(), backend.ReaderAt(ctx, r.Backend(), h), size)
+	return pack.List(r.Key(), backend.ReaderAt(ctx, r.be, h), size)
 }
 
 // Delete calls backend.Delete() if implemented, and returns an error

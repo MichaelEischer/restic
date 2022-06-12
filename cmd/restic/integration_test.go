@@ -458,7 +458,7 @@ func removePacksExcept(gopts GlobalOptions, t *testing.T, keep restic.IDSet, rem
 		if treePacks.Has(id) != removeTreePacks || keep.Has(id) {
 			return nil
 		}
-		return r.Backend().Remove(context.TODO(), backend.Handle{Type: backend.PackFile, Name: id.String()})
+		return r.Remove(context.TODO(), backend.PackFile, id)
 	}))
 }
 
@@ -520,7 +520,7 @@ func TestBackupTreeLoadError(t *testing.T) {
 
 	// delete the subdirectory pack first
 	for id := range treePacks {
-		rtest.OK(t, r.Backend().Remove(context.TODO(), backend.Handle{Type: backend.PackFile, Name: id.String()}))
+		rtest.OK(t, r.Remove(context.TODO(), backend.PackFile, id))
 	}
 	testRunRebuildIndex(t, env.gopts)
 	// now the repo is missing the tree blob in the index; check should report this

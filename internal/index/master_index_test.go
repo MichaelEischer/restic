@@ -360,8 +360,7 @@ func testIndexSave(t *testing.T, version uint) {
 
 	for id := range obsoletes {
 		t.Logf("remove index %v", id.Str())
-		h := backend.Handle{Type: backend.IndexFile, Name: id.String()}
-		err = repo.Backend().Remove(context.TODO(), h)
+		err = repo.Remove(context.TODO(), backend.IndexFile, id)
 		if err != nil {
 			t.Errorf("error removing index %v: %v", id, err)
 		}

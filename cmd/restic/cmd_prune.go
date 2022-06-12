@@ -152,7 +152,7 @@ func runPrune(ctx context.Context, opts PruneOptions, gopts GlobalOptions) error
 		return err
 	}
 
-	if repo.Backend().Connections() < 2 {
+	if repo.Connections() < 2 {
 		return errors.Fatal("prune requires a backend connection limit of at least two")
 	}
 
@@ -775,10 +775,6 @@ func getUsedBlobs(ctx context.Context, gopts GlobalOptions, repo restic.Reposito
 
 	err = data.FindUsedBlobs(ctx, repo, snapshotTrees, usedBlobs, bar)
 	if err != nil {
-		if repo.Backend().IsNotExist(err) {
-			return nil, errors.Fatal("unable to load a tree from the repository: " + err.Error())
-		}
-
 		return nil, err
 	}
 	return usedBlobs, nil
