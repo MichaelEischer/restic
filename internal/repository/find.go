@@ -1,8 +1,10 @@
-package restic
+package repository
 
 import (
 	"context"
 	"fmt"
+
+	"github.com/restic/restic/internal/restic"
 )
 
 // A MultipleIDMatchesError is returned by Find() when multiple IDs with a
@@ -24,13 +26,13 @@ func (e *NoIDByPrefixError) Error() string {
 // Find loads the list of all files of type t and searches for names which
 // start with prefix. If none is found, nil and ErrNoIDPrefixFound is returned.
 // If more than one is found, nil and ErrMultipleIDMatches is returned.
-func Find(ctx context.Context, be Lister, t FileType, prefix string) (ID, error) {
-	match := ID{}
+func Find(ctx context.Context, be restic.Lister, t restic.FileType, prefix string) (restic.ID, error) {
+	match := restic.ID{}
 
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	err := be.List(ctx, t, func(id ID, size int64) error {
+	err := be.List(ctx, t, func(id restic.ID, size int64) error {
 		name := id.String()
 		if len(name) >= len(prefix) && prefix == name[:len(prefix)] {
 			if match.IsNull() {
@@ -44,12 +46,12 @@ func Find(ctx context.Context, be Lister, t FileType, prefix string) (ID, error)
 	})
 
 	if err != nil {
-		return ID{}, err
+		return restic.ID{}, err
 	}
 
 	if !match.IsNull() {
 		return match, nil
 	}
 
-	return ID{}, &NoIDByPrefixError{prefix}
+	return restic.ID{}, &NoIDByPrefixError{prefix}
 }

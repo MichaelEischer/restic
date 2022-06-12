@@ -235,7 +235,7 @@ func runKey(ctx context.Context, gopts GlobalOptions, args []string) error {
 			return err
 		}
 
-		id, err := restic.Find(ctx, repo, restic.KeyFile, args[1])
+		id, err := repository.Find(ctx, repo, restic.KeyFile, args[1])
 		if err != nil {
 			return err
 		}
