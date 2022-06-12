@@ -146,12 +146,12 @@ func Create(ctx context.Context, cfg Config, rt http.RoundTripper) (backend.Back
 		sem:          sem,
 	}
 
-	present, err := be.Test(ctx, backend.Handle{Type: backend.ConfigFile})
-	if err != nil {
+	_, err = be.Stat(context.TODO(), backend.Handle{Type: backend.ConfigFile})
+	if err != nil && !be.IsNotExist(err) {
 		return nil, err
 	}
 
-	if present {
+	if err == nil {
 		return nil, errors.New("config already exists")
 	}
 
@@ -284,23 +284,6 @@ func (be *b2Backend) Stat(ctx context.Context, h backend.Handle) (bi backend.Fil
 		return backend.FileInfo{}, errors.Wrap(err, "Stat")
 	}
 	return backend.FileInfo{Size: info.Size, Name: h.Name}, nil
-}
-
-// Test returns true if a blob of the given type and name exists in the backend.
-func (be *b2Backend) Test(ctx context.Context, h backend.Handle) (bool, error) {
-	debug.Log("Test %v", h)
-
-	be.sem.GetToken()
-	defer be.sem.ReleaseToken()
-
-	found := false
-	name := be.Filename(h)
-	obj := be.bucket.Object(name)
-	info, err := obj.Attrs(ctx)
-	if err == nil && info != nil && info.Status == b2.Uploaded {
-		found = true
-	}
-	return found, nil
 }
 
 // Remove removes the blob with the given name and type.

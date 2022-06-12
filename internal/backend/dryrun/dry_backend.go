@@ -86,7 +86,3 @@ func (be *Backend) Load(ctx context.Context, h backend.Handle, length int, offse
 func (be *Backend) Stat(ctx context.Context, h backend.Handle) (backend.FileInfo, error) {
 	return be.b.Stat(ctx, h)
 }
-
-func (be *Backend) Test(ctx context.Context, h backend.Handle) (bool, error) {
-	return be.b.Test(ctx, h)
-}

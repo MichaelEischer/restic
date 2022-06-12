@@ -154,12 +154,12 @@ func newMinioTestSuite(ctx context.Context, t testing.TB) *test.Suite {
 				return nil, err
 			}
 
-			exists, err := be.Test(ctx, backend.Handle{Type: backend.ConfigFile})
-			if err != nil {
+			_, err = be.Stat(context.TODO(), backend.Handle{Type: backend.ConfigFile})
+			if err != nil && !be.IsNotExist(err) {
 				return nil, err
 			}
 
-			if exists {
+			if err == nil {
 				return nil, errors.New("config already exists")
 			}
 
@@ -253,12 +253,12 @@ func newS3TestSuite(t testing.TB) *test.Suite {
 				return nil, err
 			}
 
-			exists, err := be.Test(context.TODO(), backend.Handle{Type: backend.ConfigFile})
-			if err != nil {
+			_, err = be.Stat(context.TODO(), backend.Handle{Type: backend.ConfigFile})
+			if err != nil && !be.IsNotExist(err) {
 				return nil, err
 			}
 
-			if exists {
+			if err == nil {
 				return nil, errors.New("config already exists")
 			}
 

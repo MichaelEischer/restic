@@ -18,7 +18,6 @@ type Backend struct {
 	StatFn             func(ctx context.Context, h backend.Handle) (backend.FileInfo, error)
 	ListFn             func(ctx context.Context, t backend.FileType, fn func(backend.FileInfo) error) error
 	RemoveFn           func(ctx context.Context, h backend.Handle) error
-	TestFn             func(ctx context.Context, h backend.Handle) (bool, error)
 	DeleteFn           func(ctx context.Context) error
 	ConnectionsFn      func() uint
 	LocationFn         func() string
@@ -141,15 +140,6 @@ func (m *Backend) Remove(ctx context.Context, h backend.Handle) error {
 	}
 
 	return m.RemoveFn(ctx, h)
-}
-
-// Test for the existence of a specific item.
-func (m *Backend) Test(ctx context.Context, h backend.Handle) (bool, error) {
-	if m.TestFn == nil {
-		return false, errors.New("not implemented")
-	}
-
-	return m.TestFn(ctx, h)
 }
 
 // Delete all data.

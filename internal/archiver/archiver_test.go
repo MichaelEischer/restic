@@ -1863,10 +1863,6 @@ type noCancelBackend struct {
 	backend.Backend
 }
 
-func (c *noCancelBackend) Test(ctx context.Context, h backend.Handle) (bool, error) {
-	return c.Backend.Test(context.Background(), h)
-}
-
 func (c *noCancelBackend) Remove(ctx context.Context, h backend.Handle) error {
 	return c.Backend.Remove(context.Background(), h)
 }

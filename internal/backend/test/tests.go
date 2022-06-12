@@ -34,6 +34,15 @@ func seedRand(t testing.TB) {
 	t.Logf("rand initialized with seed %d", seed)
 }
 
+func beTest(ctx context.Context, be backend.Backend, h backend.Handle) (bool, error) {
+	_, err := be.Stat(ctx, h)
+	if err != nil && be.IsNotExist(err) {
+		return false, nil
+	}
+
+	return err == nil, err
+}
+
 // TestCreateWithConfig tests that creating a backend in a location which already
 // has a config file fails.
 func (s *Suite) TestCreateWithConfig(t *testing.T) {
@@ -42,7 +51,7 @@ func (s *Suite) TestCreateWithConfig(t *testing.T) {
 
 	// remove a config if present
 	cfgHandle := backend.Handle{Type: backend.ConfigFile}
-	cfgPresent, err := b.Test(context.TODO(), cfgHandle)
+	cfgPresent, err := beTest(context.TODO(), b, cfgHandle)
 	if err != nil {
 		t.Fatalf("unable to test for config: %+v", err)
 	}
@@ -641,7 +650,7 @@ func (s *Suite) TestSaveWrongHash(t *testing.T) {
 	// test that upload with hash mismatch fails
 	h := backend.Handle{Type: backend.PackFile, Name: name}
 	err := b.Save(context.TODO(), h, &wrongByteReader{ByteReader: *backend.NewByteReader(data, b.Hasher())})
-	exists, err2 := b.Test(context.TODO(), h)
+	exists, err2 := beTest(context.TODO(), b, h)
 	if err2 != nil {
 		t.Fatal(err2)
 	}
@@ -701,7 +710,7 @@ func (s *Suite) delayedRemove(t testing.TB, be backend.Backend, handles ...backe
 		var found bool
 		var err error
 		for time.Since(start) <= s.WaitForDelayedRemoval {
-			found, err = be.Test(context.TODO(), h)
+			found, err = beTest(context.TODO(), be, h)
 			if s.ErrorHandler != nil {
 				err = s.ErrorHandler(t, be, err)
 			}
@@ -764,7 +773,7 @@ func (s *Suite) TestBackend(t *testing.T) {
 		for _, ts := range testStrings {
 			// test if blob is already in repository
 			h := backend.Handle{Type: tpe, Name: ts.id}
-			ret, err := b.Test(context.TODO(), h)
+			ret, err := beTest(context.TODO(), b, h)
 			test.OK(t, err)
 			test.Assert(t, !ret, "blob was found to exist before creating")
 
@@ -777,7 +786,7 @@ func (s *Suite) TestBackend(t *testing.T) {
 			test.Assert(t, err != nil, "blob could be read before creation")
 
 			// try to get string out, should fail
-			ret, err = b.Test(context.TODO(), h)
+			ret, err = beTest(context.TODO(), b, h)
 			test.OK(t, err)
 			test.Assert(t, !ret, "id %q was found (but should not have)", ts.id)
 		}
@@ -818,7 +827,7 @@ func (s *Suite) TestBackend(t *testing.T) {
 		test.OK(t, err)
 
 		// test that the blob is gone
-		ok, err := b.Test(context.TODO(), h)
+		ok, err := beTest(context.TODO(), b, h)
 		test.OK(t, err)
 		test.Assert(t, !ok, "removed blob still present")
 
@@ -849,9 +858,9 @@ func (s *Suite) TestBackend(t *testing.T) {
 		for _, ts := range testStrings {
 			h := backend.Handle{Type: tpe, Name: ts.id}
 
-			found, err := b.Test(context.TODO(), h)
+			found, err := beTest(context.TODO(), b, h)
 			test.OK(t, err)
-			test.Assert(t, found, fmt.Sprintf("id %q not found", ts.id))
+			test.Assert(t, found, fmt.Sprintf("id %v/%q not found", tpe, ts.id))
 
 			handles = append(handles, h)
 		}

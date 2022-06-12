@@ -42,12 +42,9 @@ func TestDry(t *testing.T) {
 		{d, "stat", "a", "", "not found"},
 		{d, "list", "", "", ""},
 		{d, "save", "", "", "invalid"},
-		{d, "test", "a", "", ""},
 		{m, "save", "a", "baz", ""},  // save a directly to the mem backend
 		{d, "save", "b", "foob", ""}, // b is not saved
 		{d, "save", "b", "xxx", ""},  // no error as b is not saved
-		{d, "test", "a", "1", ""},
-		{d, "test", "b", "", ""},
 		{d, "stat", "", "", "invalid"},
 		{d, "stat", "a", "a 3", ""},
 		{d, "load", "a", "baz", ""},
@@ -66,17 +63,11 @@ func TestDry(t *testing.T) {
 
 	for i, step := range steps {
 		var err error
-		var boolRes bool
 
 		handle := backend.Handle{Type: backend.PackFile, Name: step.fname}
 		switch step.op {
 		case "save":
 			err = step.be.Save(ctx, handle, backend.NewByteReader([]byte(step.content), step.be.Hasher()))
-		case "test":
-			boolRes, err = step.be.Test(ctx, handle)
-			if boolRes != (step.content != "") {
-				t.Errorf("%d. Test(%q) = %v, want %v", i, step.fname, boolRes, step.content != "")
-			}
 		case "list":
 			fileList := []string{}
 			err = step.be.List(ctx, backend.PackFile, func(fi backend.FileInfo) error {

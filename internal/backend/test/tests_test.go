@@ -26,12 +26,12 @@ func newTestSuite(t testing.TB) *test.Suite {
 		Create: func(cfg interface{}) (backend.Backend, error) {
 			c := cfg.(*memConfig)
 			if c.be != nil {
-				ok, err := c.be.Test(context.TODO(), backend.Handle{Type: backend.ConfigFile})
-				if err != nil {
+				_, err := c.be.Stat(context.TODO(), backend.Handle{Type: backend.ConfigFile})
+				if err != nil && !c.be.IsNotExist(err) {
 					return nil, err
 				}
 
-				if ok {
+				if err == nil {
 					return nil, errors.New("config already exists")
 				}
 			}
