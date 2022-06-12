@@ -11,11 +11,9 @@ import (
 
 	"github.com/cespare/xxhash/v2"
 	"github.com/restic/restic/internal/backend"
-	"github.com/restic/restic/internal/backend/sema"
+	"github.com/restic/restic/internal/backend/connections"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
-
-	"github.com/cenkalti/backoff/v4"
 )
 
 type memMap map[backend.Handle][]byte
@@ -30,26 +28,22 @@ const connectionCount = 2
 // MemoryBackend is a mock backend that uses a map for storing all data in
 // memory. This should only be used for tests.
 type MemoryBackend struct {
-	data memMap
-	m    sync.Mutex
-	sem  sema.Semaphore
+	data         memMap
+	m            sync.Mutex
+	openReaderFn backend.OpenReaderFn
 }
 
 // New returns a new backend that saves all data in a map in memory.
-func New() *MemoryBackend {
-	sem, err := sema.New(connectionCount)
-	if err != nil {
-		panic(err)
-	}
-
+func New() backend.Backend {
 	be := &MemoryBackend{
 		data: make(memMap),
-		sem:  sem,
 	}
+	cbe := connections.New(be, connectionCount)
+	be.openReaderFn = cbe.WrapReaderFn(be.openReader)
 
 	debug.Log("created new memory backend")
 
-	return be
+	return cbe
 }
 
 // IsNotExist returns true if the file does not exist.
@@ -59,13 +53,6 @@ func (be *MemoryBackend) IsNotExist(err error) bool {
 
 // Save adds new Data to the backend.
 func (be *MemoryBackend) Save(ctx context.Context, h backend.Handle, rd backend.RewindReader) error {
-	if err := h.Valid(); err != nil {
-		return backoff.Permanent(err)
-	}
-
-	be.sem.GetToken()
-	defer be.sem.ReleaseToken()
-
 	be.m.Lock()
 	defer be.m.Unlock()
 
@@ -110,15 +97,10 @@ func (be *MemoryBackend) Save(ctx context.Context, h backend.Handle, rd backend.
 // Load runs fn with a reader that yields the contents of the file at h at the
 // given offset.
 func (be *MemoryBackend) Load(ctx context.Context, h backend.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
-	return backend.DefaultLoad(ctx, h, length, offset, be.openReader, fn)
+	return backend.DefaultLoad(ctx, h, length, offset, be.openReaderFn, fn)
 }
 
 func (be *MemoryBackend) openReader(ctx context.Context, h backend.Handle, length int, offset int64) (io.ReadCloser, error) {
-	if err := h.Valid(); err != nil {
-		return nil, backoff.Permanent(err)
-	}
-
-	be.sem.GetToken()
 	be.m.Lock()
 	defer be.m.Unlock()
 
@@ -127,21 +109,12 @@ func (be *MemoryBackend) openReader(ctx context.Context, h backend.Handle, lengt
 		h.Name = ""
 	}
 
-	debug.Log("Load %v offset %v len %v", h, offset, length)
-
-	if offset < 0 {
-		be.sem.ReleaseToken()
-		return nil, errors.New("offset is negative")
-	}
-
 	if _, ok := be.data[h]; !ok {
-		be.sem.ReleaseToken()
 		return nil, errNotFound
 	}
 
 	buf := be.data[h]
 	if offset > int64(len(buf)) {
-		be.sem.ReleaseToken()
 		return nil, errors.New("offset beyond end of file")
 	}
 
@@ -150,18 +123,11 @@ func (be *MemoryBackend) openReader(ctx context.Context, h backend.Handle, lengt
 		buf = buf[:length]
 	}
 
-	return be.sem.ReleaseTokenOnClose(ioutil.NopCloser(bytes.NewReader(buf)), nil), ctx.Err()
+	return ioutil.NopCloser(bytes.NewReader(buf)), ctx.Err()
 }
 
 // Stat returns information about a file in the backend.
 func (be *MemoryBackend) Stat(ctx context.Context, h backend.Handle) (backend.FileInfo, error) {
-	if err := h.Valid(); err != nil {
-		return backend.FileInfo{}, backoff.Permanent(err)
-	}
-
-	be.sem.GetToken()
-	defer be.sem.ReleaseToken()
-
 	be.m.Lock()
 	defer be.m.Unlock()
 
@@ -169,8 +135,6 @@ func (be *MemoryBackend) Stat(ctx context.Context, h backend.Handle) (backend.Fi
 	if h.Type == backend.ConfigFile {
 		h.Name = ""
 	}
-
-	debug.Log("stat %v", h)
 
 	e, ok := be.data[h]
 	if !ok {
@@ -182,13 +146,8 @@ func (be *MemoryBackend) Stat(ctx context.Context, h backend.Handle) (backend.Fi
 
 // Remove deletes a file from the backend.
 func (be *MemoryBackend) Remove(ctx context.Context, h backend.Handle) error {
-	be.sem.GetToken()
-	defer be.sem.ReleaseToken()
-
 	be.m.Lock()
 	defer be.m.Unlock()
-
-	debug.Log("Remove %v", h)
 
 	h.IsMetadata = false
 	if _, ok := be.data[h]; !ok {

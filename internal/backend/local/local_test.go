@@ -91,7 +91,7 @@ func empty(t testing.TB, dir string) {
 }
 
 func openclose(t testing.TB, dir string) {
-	cfg := local.Config{Path: dir}
+	cfg := local.Config{Path: dir, Connections: 2}
 
 	be, err := local.Open(context.TODO(), cfg)
 	if err != nil {

@@ -13,12 +13,11 @@ import (
 	"time"
 
 	"github.com/restic/restic/internal/backend"
+	"github.com/restic/restic/internal/backend/connections"
 	"github.com/restic/restic/internal/backend/layout"
-	"github.com/restic/restic/internal/backend/sema"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
 
-	"github.com/cenkalti/backoff/v4"
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
 )
@@ -26,9 +25,9 @@ import (
 // Backend stores data on an S3 endpoint.
 type Backend struct {
 	client *minio.Client
-	sem    sema.Semaphore
 	cfg    Config
 	layout.Layout
+	openReaderFn backend.OpenReaderFn
 }
 
 // make sure that *Backend implements backend.Backend
@@ -36,7 +35,7 @@ var _ backend.Backend = &Backend{}
 
 const defaultLayout = "default"
 
-func open(ctx context.Context, cfg Config, rt http.RoundTripper) (*Backend, error) {
+func open(ctx context.Context, cfg Config, rt http.RoundTripper) (backend.Backend, *Backend, error) {
 	debug.Log("open, config %#v", cfg)
 
 	if cfg.MaxRetries > 0 {
@@ -72,7 +71,7 @@ func open(ctx context.Context, cfg Config, rt http.RoundTripper) (*Backend, erro
 
 	c, err := creds.Get()
 	if err != nil {
-		return nil, errors.Wrap(err, "creds.Get")
+		return nil, nil, errors.Wrap(err, "creds.Get")
 	}
 
 	if c.SignerType == credentials.SignatureAnonymous {
@@ -94,45 +93,43 @@ func open(ctx context.Context, cfg Config, rt http.RoundTripper) (*Backend, erro
 	case "path":
 		options.BucketLookup = minio.BucketLookupPath
 	default:
-		return nil, fmt.Errorf(`bad bucket-lookup style %q must be "auto", "path" or "dns"`, cfg.BucketLookup)
+		return nil, nil, fmt.Errorf(`bad bucket-lookup style %q must be "auto", "path" or "dns"`, cfg.BucketLookup)
 	}
 
 	client, err := minio.New(cfg.Endpoint, options)
 	if err != nil {
-		return nil, errors.Wrap(err, "minio.New")
-	}
-
-	sem, err := sema.New(cfg.Connections)
-	if err != nil {
-		return nil, err
+		return nil, nil, errors.Wrap(err, "minio.New")
 	}
 
 	be := &Backend{
 		client: client,
-		sem:    sem,
 		cfg:    cfg,
 	}
 
 	l, err := layout.ParseLayout(ctx, be, cfg.Layout, defaultLayout, cfg.Prefix)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	be.Layout = l
 
-	return be, nil
+	cbe := connections.New(be, cfg.Connections)
+	be.openReaderFn = cbe.WrapReaderFn(be.openReader)
+
+	return cbe, be, nil
 }
 
 // Open opens the S3 backend at bucket and region. The bucket is created if it
 // does not exist yet.
 func Open(ctx context.Context, cfg Config, rt http.RoundTripper) (backend.Backend, error) {
-	return open(ctx, cfg, rt)
+	cbe, _, err := open(ctx, cfg, rt)
+	return cbe, err
 }
 
 // Create opens the S3 backend at bucket and region and creates the bucket if
 // it does not exist yet.
 func Create(ctx context.Context, cfg Config, rt http.RoundTripper) (backend.Backend, error) {
-	be, err := open(ctx, cfg, rt)
+	cbe, be, err := open(ctx, cfg, rt)
 	if err != nil {
 		return nil, errors.Wrap(err, "open")
 	}
@@ -156,7 +153,7 @@ func Create(ctx context.Context, cfg Config, rt http.RoundTripper) (backend.Back
 		}
 	}
 
-	return be, nil
+	return cbe, nil
 }
 
 // isAccessDenied returns true if the error is caused by Access Denied.
@@ -276,16 +273,7 @@ func (be *Backend) Path() string {
 
 // Save stores data in the backend at the handle.
 func (be *Backend) Save(ctx context.Context, h backend.Handle, rd backend.RewindReader) error {
-	debug.Log("Save %v", h)
-
-	if err := h.Valid(); err != nil {
-		return backoff.Permanent(err)
-	}
-
 	objName := be.Filename(h)
-
-	be.sem.GetToken()
-	defer be.sem.ReleaseToken()
 
 	opts := minio.PutObjectOptions{StorageClass: be.cfg.StorageClass}
 	opts.ContentType = "application/octet-stream"
@@ -294,7 +282,6 @@ func (be *Backend) Save(ctx context.Context, h backend.Handle, rd backend.Rewind
 	// only use multipart uploads for very large files
 	opts.PartSize = 200 * 1024 * 1024
 
-	debug.Log("PutObject(%v, %v, %v)", be.cfg.Bucket, objName, rd.Length())
 	info, err := be.client.PutObject(ctx, be.cfg.Bucket, objName, ioutil.NopCloser(rd), int64(rd.Length()), opts)
 
 	debug.Log("%v -> %v bytes, err %#v: %v", objName, info.Size, err, err)
@@ -310,23 +297,10 @@ func (be *Backend) Save(ctx context.Context, h backend.Handle, rd backend.Rewind
 // Load runs fn with a reader that yields the contents of the file at h at the
 // given offset.
 func (be *Backend) Load(ctx context.Context, h backend.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
-	return backend.DefaultLoad(ctx, h, length, offset, be.openReader, fn)
+	return backend.DefaultLoad(ctx, h, length, offset, be.openReaderFn, fn)
 }
 
 func (be *Backend) openReader(ctx context.Context, h backend.Handle, length int, offset int64) (io.ReadCloser, error) {
-	debug.Log("Load %v, length %v, offset %v from %v", h, length, offset, be.Filename(h))
-	if err := h.Valid(); err != nil {
-		return nil, backoff.Permanent(err)
-	}
-
-	if offset < 0 {
-		return nil, errors.New("offset is negative")
-	}
-
-	if length < 0 {
-		return nil, errors.Errorf("invalid length %d", length)
-	}
-
 	objName := be.Filename(h)
 	opts := minio.GetObjectOptions{}
 
@@ -343,41 +317,29 @@ func (be *Backend) openReader(ctx context.Context, h backend.Handle, length int,
 		return nil, errors.Wrap(err, "SetRange")
 	}
 
-	be.sem.GetToken()
-	ctx, cancel := context.WithCancel(ctx)
-
 	coreClient := minio.Core{Client: be.client}
 	rd, _, _, err := coreClient.GetObject(ctx, be.cfg.Bucket, objName, opts)
 	if err != nil {
-		cancel()
-		be.sem.ReleaseToken()
 		return nil, err
 	}
 
-	return be.sem.ReleaseTokenOnClose(rd, cancel), err
+	return rd, err
 }
 
 // Stat returns information about a blob.
 func (be *Backend) Stat(ctx context.Context, h backend.Handle) (bi backend.FileInfo, err error) {
-	debug.Log("%v", h)
-
 	objName := be.Filename(h)
-	var obj *minio.Object
-
 	opts := minio.GetObjectOptions{}
 
-	be.sem.GetToken()
-	obj, err = be.client.GetObject(ctx, be.cfg.Bucket, objName, opts)
+	obj, err := be.client.GetObject(ctx, be.cfg.Bucket, objName, opts)
 	if err != nil {
 		debug.Log("GetObject() err %v", err)
-		be.sem.ReleaseToken()
 		return backend.FileInfo{}, errors.Wrap(err, "client.GetObject")
 	}
 
 	// make sure that the object is closed properly.
 	defer func() {
 		e := obj.Close()
-		be.sem.ReleaseToken()
 		if err == nil {
 			err = errors.Wrap(e, "Close")
 		}
@@ -395,25 +357,17 @@ func (be *Backend) Stat(ctx context.Context, h backend.Handle) (bi backend.FileI
 // Remove removes the blob with the given name and type.
 func (be *Backend) Remove(ctx context.Context, h backend.Handle) error {
 	objName := be.Filename(h)
-
-	be.sem.GetToken()
 	err := be.client.RemoveObject(ctx, be.cfg.Bucket, objName, minio.RemoveObjectOptions{})
-	be.sem.ReleaseToken()
-
-	debug.Log("Remove(%v) at %v -> err %v", h, objName, err)
 
 	if be.IsNotExist(err) {
 		err = nil
 	}
-
 	return errors.Wrap(err, "client.RemoveObject")
 }
 
 // List runs fn for each file in the backend which has the type t. When an
 // error occurs (or fn returns an error), List stops and returns it.
 func (be *Backend) List(ctx context.Context, t backend.FileType, fn func(backend.FileInfo) error) error {
-	debug.Log("listing %v", t)
-
 	prefix, recursive := be.Basedir(t)
 
 	// make sure prefix ends with a slash
@@ -421,14 +375,8 @@ func (be *Backend) List(ctx context.Context, t backend.FileType, fn func(backend
 		prefix += "/"
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	debug.Log("using ListObjectsV1(%v)", be.cfg.ListObjectsV1)
 
-	// NB: unfortunately we can't protect this with be.sem.GetToken() here.
-	// Doing so would enable a deadlock situation (gh-1399), as ListObjects()
-	// starts its own goroutine and returns results via a channel.
 	listresp := be.client.ListObjects(ctx, be.cfg.Bucket, minio.ListObjectsOptions{
 		Prefix:    prefix,
 		Recursive: recursive,

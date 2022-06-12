@@ -14,8 +14,8 @@ import (
 	"cloud.google.com/go/storage"
 	"github.com/pkg/errors"
 	"github.com/restic/restic/internal/backend"
+	"github.com/restic/restic/internal/backend/connections"
 	"github.com/restic/restic/internal/backend/layout"
-	"github.com/restic/restic/internal/backend/sema"
 	"github.com/restic/restic/internal/debug"
 
 	"golang.org/x/oauth2"
@@ -36,12 +36,12 @@ type Backend struct {
 	gcsClient    *storage.Client
 	projectID    string
 	connections  uint
-	sem          sema.Semaphore
 	bucketName   string
 	bucket       *storage.BucketHandle
 	prefix       string
 	listMaxItems int
 	layout.Layout
+	openReaderFn backend.OpenReaderFn
 }
 
 // Ensure that *Backend implements backend.Backend.
@@ -90,24 +90,18 @@ func (be *Backend) bucketExists(ctx context.Context, bucket *storage.BucketHandl
 
 const defaultListMaxItems = 1000
 
-func open(cfg Config, rt http.RoundTripper) (*Backend, error) {
+func open(cfg Config, rt http.RoundTripper) (backend.Backend, *Backend, error) {
 	debug.Log("open, config %#v", cfg)
 
 	gcsClient, err := getStorageClient(rt)
 	if err != nil {
-		return nil, errors.Wrap(err, "getStorageClient")
-	}
-
-	sem, err := sema.New(cfg.Connections)
-	if err != nil {
-		return nil, err
+		return nil, nil, errors.Wrap(err, "getStorageClient")
 	}
 
 	be := &Backend{
 		gcsClient:   gcsClient,
 		projectID:   cfg.ProjectID,
 		connections: cfg.Connections,
-		sem:         sem,
 		bucketName:  cfg.Bucket,
 		bucket:      gcsClient.Bucket(cfg.Bucket),
 		prefix:      cfg.Prefix,
@@ -117,13 +111,16 @@ func open(cfg Config, rt http.RoundTripper) (*Backend, error) {
 		},
 		listMaxItems: defaultListMaxItems,
 	}
+	cbe := connections.New(be, cfg.Connections)
+	be.openReaderFn = cbe.WrapReaderFn(be.openReader)
 
-	return be, nil
+	return cbe, be, nil
 }
 
 // Open opens the gs backend at the specified bucket.
 func Open(cfg Config, rt http.RoundTripper) (backend.Backend, error) {
-	return open(cfg, rt)
+	cbe, _, err := open(cfg, rt)
+	return cbe, err
 }
 
 // Create opens the gs backend at the specified bucket and attempts to creates
@@ -132,7 +129,7 @@ func Open(cfg Config, rt http.RoundTripper) (backend.Backend, error) {
 // The service account must have the "storage.buckets.create" permission to
 // create a bucket the does not yet exist.
 func Create(cfg Config, rt http.RoundTripper) (backend.Backend, error) {
-	be, err := open(cfg, rt)
+	cbe, be, err := open(cfg, rt)
 	if err != nil {
 		return nil, errors.Wrap(err, "open")
 	}
@@ -155,10 +152,9 @@ func Create(cfg Config, rt http.RoundTripper) (backend.Backend, error) {
 			// Always an error, as the bucket definitely doesn't exist.
 			return nil, errors.Wrap(err, "service.Buckets.Insert")
 		}
-
 	}
 
-	return be, nil
+	return cbe, nil
 }
 
 // SetListMaxItems sets the number of list items to load per request.
@@ -209,16 +205,7 @@ func (be *Backend) Path() string {
 
 // Save stores data in the backend at the handle.
 func (be *Backend) Save(ctx context.Context, h backend.Handle, rd backend.RewindReader) error {
-	if err := h.Valid(); err != nil {
-		return err
-	}
-
 	objName := be.Filename(h)
-
-	debug.Log("Save %v at %v", h, objName)
-
-	be.sem.GetToken()
-
 	debug.Log("InsertObject(%v, %v)", be.bucketName, objName)
 
 	// Set chunk size to zero to disable resumable uploads.
@@ -255,8 +242,6 @@ func (be *Backend) Save(ctx context.Context, h backend.Handle, rd backend.Rewind
 		err = cerr
 	}
 
-	be.sem.ReleaseToken()
-
 	if err != nil {
 		debug.Log("%v: err %#v: %v", objName, err, err)
 		return errors.Wrap(err, "service.Objects.Insert")
@@ -273,52 +258,28 @@ func (be *Backend) Save(ctx context.Context, h backend.Handle, rd backend.Rewind
 // Load runs fn with a reader that yields the contents of the file at h at the
 // given offset.
 func (be *Backend) Load(ctx context.Context, h backend.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
-	return backend.DefaultLoad(ctx, h, length, offset, be.openReader, fn)
+	return backend.DefaultLoad(ctx, h, length, offset, be.openReaderFn, fn)
 }
 
 func (be *Backend) openReader(ctx context.Context, h backend.Handle, length int, offset int64) (io.ReadCloser, error) {
-	debug.Log("Load %v, length %v, offset %v from %v", h, length, offset, be.Filename(h))
-	if err := h.Valid(); err != nil {
-		return nil, err
-	}
-
-	if offset < 0 {
-		return nil, errors.New("offset is negative")
-	}
-
-	if length < 0 {
-		return nil, errors.Errorf("invalid length %d", length)
-	}
 	if length == 0 {
 		// negative length indicates read till end to GCS lib
 		length = -1
 	}
 
 	objName := be.Filename(h)
-
-	be.sem.GetToken()
-
-	ctx, cancel := context.WithCancel(ctx)
-
 	r, err := be.bucket.Object(objName).NewRangeReader(ctx, offset, int64(length))
 	if err != nil {
-		cancel()
-		be.sem.ReleaseToken()
 		return nil, err
 	}
 
-	return be.sem.ReleaseTokenOnClose(r, cancel), err
+	return r, err
 }
 
 // Stat returns information about a blob.
 func (be *Backend) Stat(ctx context.Context, h backend.Handle) (bi backend.FileInfo, err error) {
-	debug.Log("%v", h)
-
 	objName := be.Filename(h)
-
-	be.sem.GetToken()
 	attr, err := be.bucket.Object(objName).Attrs(ctx)
-	be.sem.ReleaseToken()
 
 	if err != nil {
 		debug.Log("GetObjectAttributes() err %v", err)
@@ -331,24 +292,17 @@ func (be *Backend) Stat(ctx context.Context, h backend.Handle) (bi backend.FileI
 // Remove removes the blob with the given name and type.
 func (be *Backend) Remove(ctx context.Context, h backend.Handle) error {
 	objName := be.Filename(h)
-
-	be.sem.GetToken()
 	err := be.bucket.Object(objName).Delete(ctx)
-	be.sem.ReleaseToken()
 
 	if err == storage.ErrObjectNotExist {
 		err = nil
 	}
-
-	debug.Log("Remove(%v) at %v -> err %v", h, objName, err)
 	return errors.Wrap(err, "client.RemoveObject")
 }
 
 // List runs fn for each file in the backend which has the type t. When an
 // error occurs (or fn returns an error), List stops and returns it.
 func (be *Backend) List(ctx context.Context, t backend.FileType, fn func(backend.FileInfo) error) error {
-	debug.Log("listing %v", t)
-
 	prefix, _ := be.Basedir(t)
 
 	// make sure prefix ends with a slash
@@ -356,15 +310,10 @@ func (be *Backend) List(ctx context.Context, t backend.FileType, fn func(backend
 		prefix += "/"
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	itr := be.bucket.Objects(ctx, &storage.Query{Prefix: prefix})
 
 	for {
-		be.sem.GetToken()
 		attrs, err := itr.Next()
-		be.sem.ReleaseToken()
 		if err == iterator.Done {
 			break
 		}

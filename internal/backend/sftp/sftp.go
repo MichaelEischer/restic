@@ -14,8 +14,8 @@ import (
 	"time"
 
 	"github.com/restic/restic/internal/backend"
+	"github.com/restic/restic/internal/backend/connections"
 	"github.com/restic/restic/internal/backend/layout"
-	"github.com/restic/restic/internal/backend/sema"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
 
@@ -34,10 +34,10 @@ type SFTP struct {
 
 	posixRename bool
 
-	sem sema.Semaphore
 	layout.Layout
 	Config
 	backend.Modes
+	openReaderFn backend.OpenReaderFn
 }
 
 var _ backend.Backend = &SFTP{}
@@ -126,7 +126,7 @@ func (r *SFTP) clientError() error {
 
 // Open opens an sftp backend as described by the config by running
 // "ssh" with the appropriate arguments (or cfg.Command, if set).
-func Open(ctx context.Context, cfg Config) (*SFTP, error) {
+func Open(ctx context.Context, cfg Config) (backend.Backend, error) {
 	debug.Log("open backend with config %#v", cfg)
 
 	sftp, err := startClient(cfg)
@@ -138,12 +138,8 @@ func Open(ctx context.Context, cfg Config) (*SFTP, error) {
 	return open(ctx, sftp, cfg)
 }
 
-func open(ctx context.Context, sftp *SFTP, cfg Config) (*SFTP, error) {
-	sem, err := sema.New(cfg.Connections)
-	if err != nil {
-		return nil, err
-	}
-
+func open(ctx context.Context, sftp *SFTP, cfg Config) (backend.Backend, error) {
+	var err error
 	sftp.Layout, err = layout.ParseLayout(ctx, sftp, cfg.Layout, defaultLayout, cfg.Path)
 	if err != nil {
 		return nil, err
@@ -157,9 +153,10 @@ func open(ctx context.Context, sftp *SFTP, cfg Config) (*SFTP, error) {
 
 	sftp.Config = cfg
 	sftp.p = cfg.Path
-	sftp.sem = sem
 	sftp.Modes = m
-	return sftp, nil
+	cbe := connections.New(sftp, cfg.Connections)
+	sftp.openReaderFn = cbe.WrapReaderFn(sftp.openReader)
+	return cbe, nil
 }
 
 func (r *SFTP) mkdirAllDataSubdirs(ctx context.Context, nconn uint) error {
@@ -236,7 +233,7 @@ func buildSSHCommand(cfg Config) (cmd string, args []string, err error) {
 
 // Create creates an sftp backend as described by the config by running "ssh"
 // with the appropriate arguments (or cfg.Command, if set).
-func Create(ctx context.Context, cfg Config) (*SFTP, error) {
+func Create(ctx context.Context, cfg Config) (backend.Backend, error) {
 	sftp, err := startClient(cfg)
 	if err != nil {
 		debug.Log("unable to start program: %v", err)
@@ -303,21 +300,13 @@ func tempSuffix() string {
 
 // Save stores data in the backend at the handle.
 func (r *SFTP) Save(ctx context.Context, h backend.Handle, rd backend.RewindReader) error {
-	debug.Log("Save %v", h)
 	if err := r.clientError(); err != nil {
 		return err
-	}
-
-	if err := h.Valid(); err != nil {
-		return backoff.Permanent(err)
 	}
 
 	filename := r.Filename(h)
 	tmpFilename := filename + "-restic-temp-" + tempSuffix()
 	dirname := r.Dirname(h)
-
-	r.sem.GetToken()
-	defer r.sem.ReleaseToken()
 
 	// create new file
 	f, err := r.c.OpenFile(tmpFilename, os.O_CREATE|os.O_EXCL|os.O_WRONLY)
@@ -412,79 +401,37 @@ func (r *SFTP) checkNoSpace(dir string, size int64, origErr error) error {
 // Load runs fn with a reader that yields the contents of the file at h at the
 // given offset.
 func (r *SFTP) Load(ctx context.Context, h backend.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
-	return backend.DefaultLoad(ctx, h, length, offset, r.openReader, fn)
-}
-
-// wrapReader wraps an io.ReadCloser to run an additional function on Close.
-type wrapReader struct {
-	io.ReadCloser
-	io.WriterTo
-	f func()
-}
-
-func (wr *wrapReader) Close() error {
-	err := wr.ReadCloser.Close()
-	wr.f()
-	return err
+	return backend.DefaultLoad(ctx, h, length, offset, r.openReaderFn, fn)
 }
 
 func (r *SFTP) openReader(ctx context.Context, h backend.Handle, length int, offset int64) (io.ReadCloser, error) {
-	debug.Log("Load %v, length %v, offset %v", h, length, offset)
-	if err := h.Valid(); err != nil {
-		return nil, backoff.Permanent(err)
-	}
-
-	if offset < 0 {
-		return nil, errors.New("offset is negative")
-	}
-
-	r.sem.GetToken()
 	f, err := r.c.Open(r.Filename(h))
 	if err != nil {
-		r.sem.ReleaseToken()
 		return nil, err
 	}
 
 	if offset > 0 {
 		_, err = f.Seek(offset, 0)
 		if err != nil {
-			r.sem.ReleaseToken()
 			_ = f.Close()
 			return nil, err
 		}
 	}
 
-	// use custom close wrapper to also provide WriteTo() on the wrapper
-	rd := &wrapReader{
-		ReadCloser: f,
-		WriterTo:   f,
-		f: func() {
-			r.sem.ReleaseToken()
-		},
-	}
-
 	if length > 0 {
 		// unlimited reads usually use io.Copy which needs WriteTo support at the underlying reader
 		// limited reads are usually combined with io.ReadFull which reads all required bytes into a buffer in one go
-		return backend.LimitReadCloser(rd, int64(length)), nil
+		return backend.LimitReadCloser(f, int64(length)), nil
 	}
 
-	return rd, nil
+	return f, nil
 }
 
 // Stat returns information about a blob.
 func (r *SFTP) Stat(ctx context.Context, h backend.Handle) (backend.FileInfo, error) {
-	debug.Log("Stat(%v)", h)
 	if err := r.clientError(); err != nil {
 		return backend.FileInfo{}, err
 	}
-
-	if err := h.Valid(); err != nil {
-		return backend.FileInfo{}, backoff.Permanent(err)
-	}
-
-	r.sem.GetToken()
-	defer r.sem.ReleaseToken()
 
 	fi, err := r.c.Lstat(r.Filename(h))
 	if err != nil {
@@ -496,13 +443,9 @@ func (r *SFTP) Stat(ctx context.Context, h backend.Handle) (backend.FileInfo, er
 
 // Remove removes the content stored at name.
 func (r *SFTP) Remove(ctx context.Context, h backend.Handle) error {
-	debug.Log("Remove(%v)", h)
 	if err := r.clientError(); err != nil {
 		return err
 	}
-
-	r.sem.GetToken()
-	defer r.sem.ReleaseToken()
 
 	return r.c.Remove(r.Filename(h))
 }
@@ -510,14 +453,10 @@ func (r *SFTP) Remove(ctx context.Context, h backend.Handle) error {
 // List runs fn for each file in the backend which has the type t. When an
 // error occurs (or fn returns an error), List stops and returns it.
 func (r *SFTP) List(ctx context.Context, t backend.FileType, fn func(backend.FileInfo) error) error {
-	debug.Log("List %v", t)
-
 	basedir, subdirs := r.Basedir(t)
 	walker := r.c.Walk(basedir)
 	for {
-		r.sem.GetToken()
 		ok := walker.Step()
-		r.sem.ReleaseToken()
 		if !ok {
 			break
 		}
@@ -572,11 +511,6 @@ var closeTimeout = 2 * time.Second
 
 // Close closes the sftp connection and terminates the underlying command.
 func (r *SFTP) Close() error {
-	debug.Log("Close")
-	if r == nil {
-		return nil
-	}
-
 	err := r.c.Close()
 	debug.Log("Close returned error %v", err)
 

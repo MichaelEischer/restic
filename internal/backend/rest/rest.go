@@ -15,12 +15,10 @@ import (
 	"strings"
 
 	"github.com/restic/restic/internal/backend"
+	"github.com/restic/restic/internal/backend/connections"
 	"github.com/restic/restic/internal/backend/layout"
-	"github.com/restic/restic/internal/backend/sema"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
-
-	"github.com/cenkalti/backoff/v4"
 )
 
 // make sure the rest backend implements backend.Backend
@@ -28,11 +26,10 @@ var _ backend.Backend = &Backend{}
 
 // Backend uses the REST protocol to access data stored on a server.
 type Backend struct {
-	url         *url.URL
-	connections uint
-	sem         sema.Semaphore
-	client      http.Client
-	layout.Layout
+	url          *url.URL
+	connections  uint
+	client       http.Client
+	openReaderFn backend.OpenReaderFn
 }
 
 // the REST API protocol version is decided by HTTP request headers, these are the constants.
@@ -41,12 +38,8 @@ const (
 	ContentTypeV2 = "application/vnd.x.restic.rest.v2"
 )
 
-// Open opens the REST backend with the given config.
-func Open(cfg Config, rt http.RoundTripper) (*Backend, error) {
-	sem, err := sema.New(cfg.Connections)
-	if err != nil {
-		return nil, err
-	}
+func open(cfg Config, rt http.RoundTripper) (backend.Backend, *Backend, error) {
+	client := http.Client{Transport: rt}
 
 	// use url without trailing slash for layout
 	url := cfg.URL.String()
@@ -59,15 +52,22 @@ func Open(cfg Config, rt http.RoundTripper) (*Backend, error) {
 		client:      http.Client{Transport: rt},
 		Layout:      &layout.RESTLayout{URL: url, Join: path.Join},
 		connections: cfg.Connections,
-		sem:         sem,
 	}
+	cbe := connections.New(be, cfg.Connections)
+	be.openReaderFn = cbe.WrapReaderFn(be.openReader)
 
-	return be, nil
+	return cbe, be, nil
+}
+
+// Open opens the REST backend with the given config.
+func Open(cfg Config, rt http.RoundTripper) (backend.Backend, error) {
+	cbe, _, err := open(cfg, rt)
+	return cbe, err
 }
 
 // Create creates a new REST on server configured in config.
-func Create(ctx context.Context, cfg Config, rt http.RoundTripper) (*Backend, error) {
-	be, err := Open(cfg, rt)
+func Create(ctx context.Context, cfg Config, rt http.RoundTripper) (backend.Backend, error) {
+	cbe, be, err := open(cfg, rt)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +101,7 @@ func Create(ctx context.Context, cfg Config, rt http.RoundTripper) (*Backend, er
 		return nil, err
 	}
 
-	return be, nil
+	return cbe, nil
 }
 
 func (b *Backend) Connections() uint {
@@ -126,13 +126,6 @@ func (b *Backend) HasAtomicReplace() bool {
 
 // Save stores data in the backend at the handle.
 func (b *Backend) Save(ctx context.Context, h backend.Handle, rd backend.RewindReader) error {
-	if err := h.Valid(); err != nil {
-		return backoff.Permanent(err)
-	}
-
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	// make sure that client.Post() cannot close the reader by wrapping it
 	req, err := http.NewRequestWithContext(ctx,
 		http.MethodPost, b.Filename(h), ioutil.NopCloser(rd))
@@ -146,9 +139,7 @@ func (b *Backend) Save(ctx context.Context, h backend.Handle, rd backend.RewindR
 	// let's the server know what's coming.
 	req.ContentLength = rd.Length()
 
-	b.sem.GetToken()
 	resp, err := b.client.Do(req)
-	b.sem.ReleaseToken()
 
 	var cerr error
 	if resp != nil {
@@ -186,7 +177,7 @@ func (b *Backend) IsNotExist(err error) bool {
 // Load runs fn with a reader that yields the contents of the file at h at the
 // given offset.
 func (b *Backend) Load(ctx context.Context, h backend.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
-	r, err := b.openReader(ctx, h, length, offset)
+	r, err := b.openReaderFn(ctx, h, length, offset)
 	if err != nil {
 		return err
 	}
@@ -253,19 +244,6 @@ func checkContentLength(resp *http.Response) error {
 }
 
 func (b *Backend) openReader(ctx context.Context, h backend.Handle, length int, offset int64) (io.ReadCloser, error) {
-	debug.Log("Load %v, length %v, offset %v", h, length, offset)
-	if err := h.Valid(); err != nil {
-		return nil, backoff.Permanent(err)
-	}
-
-	if offset < 0 {
-		return nil, errors.New("offset is negative")
-	}
-
-	if length < 0 {
-		return nil, errors.Errorf("invalid length %d", length)
-	}
-
 	req, err := http.NewRequestWithContext(ctx, "GET", b.Filename(h), nil)
 	if err != nil {
 		return nil, errors.WithStack(err)
@@ -279,9 +257,7 @@ func (b *Backend) openReader(ctx context.Context, h backend.Handle, length int, 
 	req.Header.Set("Accept", ContentTypeV2)
 	debug.Log("Load(%v) send range %v", h, byteRange)
 
-	b.sem.GetToken()
 	resp, err := b.client.Do(req)
-	b.sem.ReleaseToken()
 
 	if err != nil {
 		if resp != nil {
@@ -314,19 +290,13 @@ func (b *Backend) openReader(ctx context.Context, h backend.Handle, length int, 
 
 // Stat returns information about a blob.
 func (b *Backend) Stat(ctx context.Context, h backend.Handle) (backend.FileInfo, error) {
-	if err := h.Valid(); err != nil {
-		return backend.FileInfo{}, backoff.Permanent(err)
-	}
-
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, b.Filename(h), nil)
 	if err != nil {
 		return backend.FileInfo{}, errors.WithStack(err)
 	}
 	req.Header.Set("Accept", ContentTypeV2)
 
-	b.sem.GetToken()
 	resp, err := b.client.Do(req)
-	b.sem.ReleaseToken()
 	if err != nil {
 		return backend.FileInfo{}, errors.WithStack(err)
 	}
@@ -359,19 +329,13 @@ func (b *Backend) Stat(ctx context.Context, h backend.Handle) (backend.FileInfo,
 
 // Remove removes the blob with the given name and type.
 func (b *Backend) Remove(ctx context.Context, h backend.Handle) error {
-	if err := h.Valid(); err != nil {
-		return backoff.Permanent(err)
-	}
-
 	req, err := http.NewRequestWithContext(ctx, "DELETE", b.Filename(h), nil)
 	if err != nil {
 		return errors.WithStack(err)
 	}
 	req.Header.Set("Accept", ContentTypeV2)
 
-	b.sem.GetToken()
 	resp, err := b.client.Do(req)
-	b.sem.ReleaseToken()
 
 	if err != nil {
 		return errors.Wrap(err, "client.Do")
@@ -408,9 +372,7 @@ func (b *Backend) List(ctx context.Context, t backend.FileType, fn func(backend.
 	}
 	req.Header.Set("Accept", ContentTypeV2)
 
-	b.sem.GetToken()
 	resp, err := b.client.Do(req)
-	b.sem.ReleaseToken()
 
 	if err != nil {
 		return errors.Wrap(err, "List")

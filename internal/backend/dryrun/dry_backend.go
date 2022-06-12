@@ -30,10 +30,6 @@ func New(be backend.Backend) *Backend {
 
 // Save adds new Data to the backend.
 func (be *Backend) Save(ctx context.Context, h backend.Handle, rd backend.RewindReader) error {
-	if err := h.Valid(); err != nil {
-		return err
-	}
-
 	debug.Log("faked saving %v bytes at %v", rd.Length(), h)
 
 	// don't save anything, just return ok

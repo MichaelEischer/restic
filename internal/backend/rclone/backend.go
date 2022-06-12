@@ -27,7 +27,7 @@ import (
 
 // Backend is used to access data stored somewhere via rclone.
 type Backend struct {
-	*rest.Backend
+	backend.Backend
 	tr         *http2.Transport
 	cmd        *exec.Cmd
 	waitCh     <-chan struct{}

@@ -10,12 +10,11 @@ import (
 	"time"
 
 	"github.com/restic/restic/internal/backend"
+	"github.com/restic/restic/internal/backend/connections"
 	"github.com/restic/restic/internal/backend/layout"
-	"github.com/restic/restic/internal/backend/sema"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
 
-	"github.com/cenkalti/backoff/v4"
 	"github.com/kurin/blazer/b2"
 )
 
@@ -26,7 +25,7 @@ type b2Backend struct {
 	cfg          Config
 	listMaxItems int
 	layout.Layout
-	sem sema.Semaphore
+	openReaderFn backend.OpenReaderFn
 }
 
 // Billing happens in 1000 item granlarity, but we are more interested in reducing the number of network round trips
@@ -88,11 +87,6 @@ func Open(ctx context.Context, cfg Config, rt http.RoundTripper) (backend.Backen
 		return nil, errors.Wrap(err, "Bucket")
 	}
 
-	sem, err := sema.New(cfg.Connections)
-	if err != nil {
-		return nil, err
-	}
-
 	be := &b2Backend{
 		client: client,
 		bucket: bucket,
@@ -102,10 +96,11 @@ func Open(ctx context.Context, cfg Config, rt http.RoundTripper) (backend.Backen
 			Path: cfg.Prefix,
 		},
 		listMaxItems: defaultListMaxItems,
-		sem:          sem,
 	}
+	cbe := connections.New(be, cfg.Connections)
+	be.openReaderFn = cbe.WrapReaderFn(be.openReader)
 
-	return be, nil
+	return cbe, nil
 }
 
 // Create opens a connection to the B2 service. If the bucket does not exist yet,
@@ -129,11 +124,6 @@ func Create(ctx context.Context, cfg Config, rt http.RoundTripper) (backend.Back
 		return nil, errors.Wrap(err, "NewBucket")
 	}
 
-	sem, err := sema.New(cfg.Connections)
-	if err != nil {
-		return nil, err
-	}
-
 	be := &b2Backend{
 		client: client,
 		bucket: bucket,
@@ -143,10 +133,11 @@ func Create(ctx context.Context, cfg Config, rt http.RoundTripper) (backend.Back
 			Path: cfg.Prefix,
 		},
 		listMaxItems: defaultListMaxItems,
-		sem:          sem,
 	}
+	cbe := connections.New(be, cfg.Connections)
+	be.openReaderFn = cbe.WrapReaderFn(be.openReader)
 
-	_, err = be.Stat(context.TODO(), backend.Handle{Type: backend.ConfigFile})
+	_, err = cbe.Stat(ctx, backend.Handle{Type: backend.ConfigFile})
 	if err != nil && !be.IsNotExist(err) {
 		return nil, err
 	}
@@ -155,7 +146,7 @@ func Create(ctx context.Context, cfg Config, rt http.RoundTripper) (backend.Back
 		return nil, errors.New("config already exists")
 	}
 
-	return be, nil
+	return cbe, nil
 }
 
 // SetListMaxItems sets the number of list items to load per request.
@@ -197,33 +188,16 @@ func (be *b2Backend) IsNotExist(err error) bool {
 // Load runs fn with a reader that yields the contents of the file at h at the
 // given offset.
 func (be *b2Backend) Load(ctx context.Context, h backend.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
-	return backend.DefaultLoad(ctx, h, length, offset, be.openReader, fn)
+	return backend.DefaultLoad(ctx, h, length, offset, be.openReaderFn, fn)
 }
 
 func (be *b2Backend) openReader(ctx context.Context, h backend.Handle, length int, offset int64) (io.ReadCloser, error) {
-	debug.Log("Load %v, length %v, offset %v from %v", h, length, offset, be.Filename(h))
-	if err := h.Valid(); err != nil {
-		return nil, backoff.Permanent(err)
-	}
-
-	if offset < 0 {
-		return nil, errors.New("offset is negative")
-	}
-
-	if length < 0 {
-		return nil, errors.Errorf("invalid length %d", length)
-	}
-
-	ctx, cancel := context.WithCancel(ctx)
-
-	be.sem.GetToken()
-
 	name := be.Layout.Filename(h)
 	obj := be.bucket.Object(name)
 
 	if offset == 0 && length == 0 {
 		rd := obj.NewReader(ctx)
-		return be.sem.ReleaseTokenOnClose(rd, cancel), nil
+		return rd, nil
 	}
 
 	// pass a negative length to NewRangeReader so that the remainder of the
@@ -233,23 +207,12 @@ func (be *b2Backend) openReader(ctx context.Context, h backend.Handle, length in
 	}
 
 	rd := obj.NewRangeReader(ctx, offset, int64(length))
-	return be.sem.ReleaseTokenOnClose(rd, cancel), nil
+	return rd, nil
 }
 
 // Save stores data in the backend at the handle.
 func (be *b2Backend) Save(ctx context.Context, h backend.Handle, rd backend.RewindReader) error {
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	if err := h.Valid(); err != nil {
-		return backoff.Permanent(err)
-	}
-
-	be.sem.GetToken()
-	defer be.sem.ReleaseToken()
-
 	name := be.Filename(h)
-	debug.Log("Save %v, name %v", h, name)
 	obj := be.bucket.Object(name)
 
 	// b2 always requires sha1 checksums for uploaded file parts
@@ -271,11 +234,6 @@ func (be *b2Backend) Save(ctx context.Context, h backend.Handle, rd backend.Rewi
 
 // Stat returns information about a blob.
 func (be *b2Backend) Stat(ctx context.Context, h backend.Handle) (bi backend.FileInfo, err error) {
-	debug.Log("Stat %v", h)
-
-	be.sem.GetToken()
-	defer be.sem.ReleaseToken()
-
 	name := be.Filename(h)
 	obj := be.bucket.Object(name)
 	info, err := obj.Attrs(ctx)
@@ -288,11 +246,6 @@ func (be *b2Backend) Stat(ctx context.Context, h backend.Handle) (bi backend.Fil
 
 // Remove removes the blob with the given name and type.
 func (be *b2Backend) Remove(ctx context.Context, h backend.Handle) error {
-	debug.Log("Remove %v", h)
-
-	be.sem.GetToken()
-	defer be.sem.ReleaseToken()
-
 	// the retry backend will also repeat the remove method up to 10 times
 	for i := 0; i < 3; i++ {
 		obj := be.bucket.Object(be.Filename(h))
@@ -311,22 +264,10 @@ func (be *b2Backend) Remove(ctx context.Context, h backend.Handle) error {
 	return errors.New("failed to delete all file versions")
 }
 
-type semLocker struct {
-	sema.Semaphore
-}
-
-func (sm *semLocker) Lock()   { sm.GetToken() }
-func (sm *semLocker) Unlock() { sm.ReleaseToken() }
-
 // List returns a channel that yields all names of blobs of type t.
 func (be *b2Backend) List(ctx context.Context, t backend.FileType, fn func(backend.FileInfo) error) error {
-	debug.Log("List %v", t)
-
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	prefix, _ := be.Basedir(t)
-	iter := be.bucket.List(ctx, b2.ListPrefix(prefix), b2.ListPageSize(be.listMaxItems), b2.ListLocker(&semLocker{be.sem}))
+	iter := be.bucket.List(ctx, b2.ListPrefix(prefix), b2.ListPageSize(be.listMaxItems))
 
 	for iter.Next() {
 		obj := iter.Object()
