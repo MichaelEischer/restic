@@ -5,6 +5,7 @@ import (
 	"runtime"
 	"sync"
 
+	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/restic"
 )
 
@@ -19,12 +20,12 @@ func ForAllIndexes(ctx context.Context, repo restic.Repository,
 	workerCount := repo.Connections() + uint(runtime.GOMAXPROCS(0))
 
 	var m sync.Mutex
-	return restic.ParallelList(ctx, repo, restic.IndexFile, workerCount, func(ctx context.Context, id restic.ID, size int64) error {
+	return restic.ParallelList(ctx, repo, backend.IndexFile, workerCount, func(ctx context.Context, id restic.ID, size int64) error {
 		var err error
 		var idx *Index
 		oldFormat := false
 
-		buf, err := repo.LoadUnpacked(ctx, restic.IndexFile, id, nil)
+		buf, err := repo.LoadUnpacked(ctx, backend.IndexFile, id, nil)
 		if err == nil {
 			idx, oldFormat, err = DecodeIndex(buf, id)
 		}

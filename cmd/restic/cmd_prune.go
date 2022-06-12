@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
@@ -436,7 +437,7 @@ func decidePackAction(ctx context.Context, opts PruneOptions, gopts GlobalOption
 
 	// loop over all packs and decide what to do
 	bar := newProgressMax(!gopts.Quiet, uint64(len(indexPack)), "packs processed")
-	err := repo.List(ctx, restic.PackFile, func(id restic.ID, packSize int64) error {
+	err := repo.List(ctx, backend.PackFile, func(id restic.ID, packSize int64) error {
 		p, ok := indexPack[id]
 		if !ok {
 			// Pack was not referenced in index and is not used  => immediately remove!
@@ -669,7 +670,7 @@ func doPrune(ctx context.Context, opts PruneOptions, gopts GlobalOptions, repo r
 	// unreferenced packs can be safely deleted first
 	if len(plan.removePacksFirst) != 0 {
 		Verbosef("deleting unreferenced packs\n")
-		DeleteFiles(ctx, gopts, repo, plan.removePacksFirst, restic.PackFile)
+		DeleteFiles(ctx, gopts, repo, plan.removePacksFirst, backend.PackFile)
 	}
 
 	if len(plan.repackPacks) != 0 {
@@ -702,7 +703,7 @@ func doPrune(ctx context.Context, opts PruneOptions, gopts GlobalOptions, repo r
 	if opts.unsafeRecovery {
 		Verbosef("deleting index files\n")
 		indexFiles := repo.Index().(*index.MasterIndex).IDs()
-		err = DeleteFilesChecked(ctx, gopts, repo, indexFiles, restic.IndexFile)
+		err = DeleteFilesChecked(ctx, gopts, repo, indexFiles, backend.IndexFile)
 		if err != nil {
 			return errors.Fatalf("%s", err)
 		}
@@ -715,7 +716,7 @@ func doPrune(ctx context.Context, opts PruneOptions, gopts GlobalOptions, repo r
 
 	if len(plan.removePacks) != 0 {
 		Verbosef("removing %d old packs\n", len(plan.removePacks))
-		DeleteFiles(ctx, gopts, repo, plan.removePacks, restic.PackFile)
+		DeleteFiles(ctx, gopts, repo, plan.removePacks, backend.PackFile)
 	}
 
 	if opts.unsafeRecovery {
@@ -745,7 +746,7 @@ func rebuildIndexFiles(ctx context.Context, gopts GlobalOptions, repo restic.Rep
 	}
 
 	Verbosef("deleting obsolete index files\n")
-	return DeleteFilesChecked(ctx, gopts, repo, obsoleteIndexes, restic.IndexFile)
+	return DeleteFilesChecked(ctx, gopts, repo, obsoleteIndexes, backend.IndexFile)
 }
 
 func getUsedBlobs(ctx context.Context, gopts GlobalOptions, repo restic.Repository, ignoreSnapshots restic.IDSet) (usedBlobs restic.BlobSet, err error) {

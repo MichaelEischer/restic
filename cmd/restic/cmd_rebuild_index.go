@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 
+	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/index"
 	"github.com/restic/restic/internal/pack"
 	"github.com/restic/restic/internal/repository"
@@ -66,7 +67,7 @@ func rebuildIndex(ctx context.Context, opts RebuildIndexOptions, gopts GlobalOpt
 
 	if opts.ReadAllPacks {
 		// get list of old index files but start with empty index
-		err := repo.List(ctx, restic.IndexFile, func(id restic.ID, size int64) error {
+		err := repo.List(ctx, backend.IndexFile, func(id restic.ID, size int64) error {
 			obsoleteIndexes = append(obsoleteIndexes, id)
 			return nil
 		})
@@ -103,7 +104,7 @@ func rebuildIndex(ctx context.Context, opts RebuildIndexOptions, gopts GlobalOpt
 	}
 
 	Verbosef("getting pack files to read...\n")
-	err := repo.List(ctx, restic.PackFile, func(id restic.ID, packSize int64) error {
+	err := repo.List(ctx, backend.PackFile, func(id restic.ID, packSize int64) error {
 		size, ok := packSizeFromIndex[id]
 		if !ok || size != packSize {
 			// Pack was not referenced in index or size does not match

@@ -43,7 +43,7 @@ func newAzureTestSuite(t testing.TB) *test.Suite {
 		},
 
 		// CreateFn is a function that creates a temporary repository for the tests.
-		Create: func(config interface{}) (restic.Backend, error) {
+		Create: func(config interface{}) (backend.Backend, error) {
 			cfg := config.(azure.Config)
 
 			be, err := azure.Create(cfg, tr)
@@ -51,7 +51,7 @@ func newAzureTestSuite(t testing.TB) *test.Suite {
 				return nil, err
 			}
 
-			exists, err := be.Test(context.TODO(), restic.Handle{Type: restic.ConfigFile})
+			exists, err := be.Test(context.TODO(), backend.Handle{Type: backend.ConfigFile})
 			if err != nil {
 				return nil, err
 			}
@@ -64,7 +64,7 @@ func newAzureTestSuite(t testing.TB) *test.Suite {
 		},
 
 		// OpenFn is a function that opens a previously created temporary repository.
-		Open: func(config interface{}) (restic.Backend, error) {
+		Open: func(config interface{}) (backend.Backend, error) {
 			cfg := config.(azure.Config)
 
 			return azure.Open(cfg, tr)
@@ -169,11 +169,11 @@ func TestUploadLargeFile(t *testing.T) {
 
 	data := rtest.Random(23, 300*1024*1024)
 	id := restic.Hash(data)
-	h := restic.Handle{Name: id.String(), Type: restic.PackFile}
+	h := backend.Handle{Name: id.String(), Type: backend.PackFile}
 
 	t.Logf("hash of %d bytes: %v", len(data), id)
 
-	err = be.Save(ctx, h, restic.NewByteReader(data, be.Hasher()))
+	err = be.Save(ctx, h, backend.NewByteReader(data, be.Hasher()))
 	if err != nil {
 		t.Fatal(err)
 	}

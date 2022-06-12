@@ -17,7 +17,6 @@ import (
 	"github.com/restic/restic/internal/backend/layout"
 	"github.com/restic/restic/internal/backend/sema"
 	"github.com/restic/restic/internal/debug"
-	"github.com/restic/restic/internal/restic"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -45,8 +44,8 @@ type Backend struct {
 	layout.Layout
 }
 
-// Ensure that *Backend implements restic.Backend.
-var _ restic.Backend = &Backend{}
+// Ensure that *Backend implements backend.Backend.
+var _ backend.Backend = &Backend{}
 
 func getStorageClient(rt http.RoundTripper) (*storage.Client, error) {
 	// create a new HTTP client
@@ -123,7 +122,7 @@ func open(cfg Config, rt http.RoundTripper) (*Backend, error) {
 }
 
 // Open opens the gs backend at the specified bucket.
-func Open(cfg Config, rt http.RoundTripper) (restic.Backend, error) {
+func Open(cfg Config, rt http.RoundTripper) (backend.Backend, error) {
 	return open(cfg, rt)
 }
 
@@ -132,7 +131,7 @@ func Open(cfg Config, rt http.RoundTripper) (restic.Backend, error) {
 //
 // The service account must have the "storage.buckets.create" permission to
 // create a bucket the does not yet exist.
-func Create(cfg Config, rt http.RoundTripper) (restic.Backend, error) {
+func Create(cfg Config, rt http.RoundTripper) (backend.Backend, error) {
 	be, err := open(cfg, rt)
 	if err != nil {
 		return nil, errors.Wrap(err, "open")
@@ -209,7 +208,7 @@ func (be *Backend) Path() string {
 }
 
 // Save stores data in the backend at the handle.
-func (be *Backend) Save(ctx context.Context, h restic.Handle, rd restic.RewindReader) error {
+func (be *Backend) Save(ctx context.Context, h backend.Handle, rd backend.RewindReader) error {
 	if err := h.Valid(); err != nil {
 		return err
 	}
@@ -273,11 +272,11 @@ func (be *Backend) Save(ctx context.Context, h restic.Handle, rd restic.RewindRe
 
 // Load runs fn with a reader that yields the contents of the file at h at the
 // given offset.
-func (be *Backend) Load(ctx context.Context, h restic.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
+func (be *Backend) Load(ctx context.Context, h backend.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
 	return backend.DefaultLoad(ctx, h, length, offset, be.openReader, fn)
 }
 
-func (be *Backend) openReader(ctx context.Context, h restic.Handle, length int, offset int64) (io.ReadCloser, error) {
+func (be *Backend) openReader(ctx context.Context, h backend.Handle, length int, offset int64) (io.ReadCloser, error) {
 	debug.Log("Load %v, length %v, offset %v from %v", h, length, offset, be.Filename(h))
 	if err := h.Valid(); err != nil {
 		return nil, err
@@ -312,7 +311,7 @@ func (be *Backend) openReader(ctx context.Context, h restic.Handle, length int, 
 }
 
 // Stat returns information about a blob.
-func (be *Backend) Stat(ctx context.Context, h restic.Handle) (bi restic.FileInfo, err error) {
+func (be *Backend) Stat(ctx context.Context, h backend.Handle) (bi backend.FileInfo, err error) {
 	debug.Log("%v", h)
 
 	objName := be.Filename(h)
@@ -323,14 +322,14 @@ func (be *Backend) Stat(ctx context.Context, h restic.Handle) (bi restic.FileInf
 
 	if err != nil {
 		debug.Log("GetObjectAttributes() err %v", err)
-		return restic.FileInfo{}, errors.Wrap(err, "service.Objects.Get")
+		return backend.FileInfo{}, errors.Wrap(err, "service.Objects.Get")
 	}
 
-	return restic.FileInfo{Size: attr.Size, Name: h.Name}, nil
+	return backend.FileInfo{Size: attr.Size, Name: h.Name}, nil
 }
 
 // Test returns true if a blob of the given type and name exists in the backend.
-func (be *Backend) Test(ctx context.Context, h restic.Handle) (bool, error) {
+func (be *Backend) Test(ctx context.Context, h backend.Handle) (bool, error) {
 	found := false
 	objName := be.Filename(h)
 
@@ -346,7 +345,7 @@ func (be *Backend) Test(ctx context.Context, h restic.Handle) (bool, error) {
 }
 
 // Remove removes the blob with the given name and type.
-func (be *Backend) Remove(ctx context.Context, h restic.Handle) error {
+func (be *Backend) Remove(ctx context.Context, h backend.Handle) error {
 	objName := be.Filename(h)
 
 	be.sem.GetToken()
@@ -363,7 +362,7 @@ func (be *Backend) Remove(ctx context.Context, h restic.Handle) error {
 
 // List runs fn for each file in the backend which has the type t. When an
 // error occurs (or fn returns an error), List stops and returns it.
-func (be *Backend) List(ctx context.Context, t restic.FileType, fn func(restic.FileInfo) error) error {
+func (be *Backend) List(ctx context.Context, t backend.FileType, fn func(backend.FileInfo) error) error {
 	debug.Log("listing %v", t)
 
 	prefix, _ := be.Basedir(t)
@@ -393,7 +392,7 @@ func (be *Backend) List(ctx context.Context, t restic.FileType, fn func(restic.F
 			continue
 		}
 
-		fi := restic.FileInfo{
+		fi := backend.FileInfo{
 			Name: path.Base(m),
 			Size: int64(attrs.Size),
 		}
@@ -412,20 +411,20 @@ func (be *Backend) List(ctx context.Context, t restic.FileType, fn func(restic.F
 }
 
 // Remove keys for a specified backend type.
-func (be *Backend) removeKeys(ctx context.Context, t restic.FileType) error {
-	return be.List(ctx, t, func(fi restic.FileInfo) error {
-		return be.Remove(ctx, restic.Handle{Type: t, Name: fi.Name})
+func (be *Backend) removeKeys(ctx context.Context, t backend.FileType) error {
+	return be.List(ctx, t, func(fi backend.FileInfo) error {
+		return be.Remove(ctx, backend.Handle{Type: t, Name: fi.Name})
 	})
 }
 
 // Delete removes all restic keys in the bucket. It will not remove the bucket itself.
 func (be *Backend) Delete(ctx context.Context) error {
-	alltypes := []restic.FileType{
-		restic.PackFile,
-		restic.KeyFile,
-		restic.LockFile,
-		restic.SnapshotFile,
-		restic.IndexFile}
+	alltypes := []backend.FileType{
+		backend.PackFile,
+		backend.KeyFile,
+		backend.LockFile,
+		backend.SnapshotFile,
+		backend.IndexFile}
 
 	for _, t := range alltypes {
 		err := be.removeKeys(ctx, t)
@@ -434,7 +433,7 @@ func (be *Backend) Delete(ctx context.Context) error {
 		}
 	}
 
-	return be.Remove(ctx, restic.Handle{Type: restic.ConfigFile})
+	return be.Remove(ctx, backend.Handle{Type: backend.ConfigFile})
 }
 
 // Close does nothing.

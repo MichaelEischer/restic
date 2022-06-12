@@ -11,7 +11,6 @@ import (
 	"github.com/restic/restic/internal/backend/swift"
 	"github.com/restic/restic/internal/backend/test"
 	"github.com/restic/restic/internal/errors"
-	"github.com/restic/restic/internal/restic"
 	rtest "github.com/restic/restic/internal/test"
 )
 
@@ -28,7 +27,7 @@ func newSwiftTestSuite(t testing.TB) *test.Suite {
 		// wait for removals for at least 5m
 		WaitForDelayedRemoval: 5 * time.Minute,
 
-		ErrorHandler: func(t testing.TB, be restic.Backend, err error) error {
+		ErrorHandler: func(t testing.TB, be backend.Backend, err error) error {
 			if err == nil {
 				return nil
 			}
@@ -58,7 +57,7 @@ func newSwiftTestSuite(t testing.TB) *test.Suite {
 		},
 
 		// CreateFn is a function that creates a temporary repository for the tests.
-		Create: func(config interface{}) (restic.Backend, error) {
+		Create: func(config interface{}) (backend.Backend, error) {
 			cfg := config.(swift.Config)
 
 			be, err := swift.Open(context.TODO(), cfg, tr)
@@ -66,7 +65,7 @@ func newSwiftTestSuite(t testing.TB) *test.Suite {
 				return nil, err
 			}
 
-			exists, err := be.Test(context.TODO(), restic.Handle{Type: restic.ConfigFile})
+			exists, err := be.Test(context.TODO(), backend.Handle{Type: backend.ConfigFile})
 			if err != nil {
 				return nil, err
 			}
@@ -79,7 +78,7 @@ func newSwiftTestSuite(t testing.TB) *test.Suite {
 		},
 
 		// OpenFn is a function that opens a previously created temporary repository.
-		Open: func(config interface{}) (restic.Backend, error) {
+		Open: func(config interface{}) (backend.Backend, error) {
 			cfg := config.(swift.Config)
 			return swift.Open(context.TODO(), cfg, tr)
 		},

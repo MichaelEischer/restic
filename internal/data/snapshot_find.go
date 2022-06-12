@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/repository"
 	"github.com/restic/restic/internal/restic"
@@ -86,7 +87,7 @@ func FindSnapshot(ctx context.Context, repo ListLoader, s string) (*Snapshot, er
 	id, err := restic.ParseID(s)
 	if err != nil {
 		// find snapshot id with prefix
-		id, err = repository.Find(ctx, repo, restic.SnapshotFile, s)
+		id, err = repository.Find(ctx, repo, backend.SnapshotFile, s)
 		if err != nil {
 			return nil, err
 		}

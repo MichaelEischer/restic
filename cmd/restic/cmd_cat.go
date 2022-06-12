@@ -73,7 +73,7 @@ func runCat(ctx context.Context, gopts GlobalOptions, args []string) error {
 		Println(string(buf))
 		return nil
 	case "index":
-		buf, err := repo.LoadUnpacked(ctx, restic.IndexFile, id, nil)
+		buf, err := repo.LoadUnpacked(ctx, backend.IndexFile, id, nil)
 		if err != nil {
 			return err
 		}
@@ -129,8 +129,8 @@ func runCat(ctx context.Context, gopts GlobalOptions, args []string) error {
 		return nil
 
 	case "pack":
-		h := restic.Handle{Type: restic.PackFile, Name: id.String()}
-		buf, err := backend.LoadAll(ctx, nil, repo.Backend(), h)
+		h := backend.Handle{Type: backend.PackFile, Name: id.String()}
+		buf, err := restic.LoadAll(ctx, nil, repo.Backend(), h)
 		if err != nil {
 			return err
 		}

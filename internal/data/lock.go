@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/restic"
 
@@ -173,7 +174,7 @@ func (l *Lock) checkForOtherLocks(ctx context.Context) error {
 
 // createLock acquires the lock by creating a file in the repository.
 func (l *Lock) createLock(ctx context.Context) (restic.ID, error) {
-	id, err := restic.SaveJSONUnpacked(ctx, l.repo, restic.LockFile, l)
+	id, err := restic.SaveJSONUnpacked(ctx, l.repo, backend.LockFile, l)
 	if err != nil {
 		return restic.ID{}, err
 	}
@@ -187,7 +188,7 @@ func (l *Lock) Unlock() error {
 		return nil
 	}
 
-	return l.repo.Backend().Remove(context.TODO(), restic.Handle{Type: restic.LockFile, Name: l.lockID.String()})
+	return l.repo.Backend().Remove(context.TODO(), backend.Handle{Type: backend.LockFile, Name: l.lockID.String()})
 }
 
 var StaleLockTimeout = 30 * time.Minute
@@ -240,7 +241,7 @@ func (l *Lock) Refresh(ctx context.Context) error {
 	oldLockID := l.lockID
 	l.lockID = &id
 
-	return l.repo.Backend().Remove(context.TODO(), restic.Handle{Type: restic.LockFile, Name: oldLockID.String()})
+	return l.repo.Backend().Remove(context.TODO(), backend.Handle{Type: backend.LockFile, Name: oldLockID.String()})
 }
 
 func (l Lock) String() string {
@@ -270,7 +271,7 @@ func init() {
 // LoadLock loads and unserializes a lock from a repository.
 func LoadLock(ctx context.Context, repo restic.Repository, id restic.ID) (*Lock, error) {
 	lock := &Lock{}
-	if err := restic.LoadJSONUnpacked(ctx, repo, restic.LockFile, id, lock); err != nil {
+	if err := restic.LoadJSONUnpacked(ctx, repo, backend.LockFile, id, lock); err != nil {
 		return nil, err
 	}
 	lock.lockID = &id
@@ -289,7 +290,7 @@ func RemoveStaleLocks(ctx context.Context, repo restic.Repository) (uint, error)
 		}
 
 		if lock.Stale() {
-			err = repo.Backend().Remove(ctx, restic.Handle{Type: restic.LockFile, Name: id.String()})
+			err = repo.Backend().Remove(ctx, backend.Handle{Type: backend.LockFile, Name: id.String()})
 			if err == nil {
 				processed++
 			}
@@ -304,8 +305,8 @@ func RemoveStaleLocks(ctx context.Context, repo restic.Repository) (uint, error)
 // RemoveAllLocks removes all locks forcefully.
 func RemoveAllLocks(ctx context.Context, repo restic.Repository) (uint, error) {
 	var processed uint32
-	err := restic.ParallelList(ctx, repo, restic.LockFile, repo.Connections(), func(ctx context.Context, id restic.ID, size int64) error {
-		err := repo.Backend().Remove(ctx, restic.Handle{Type: restic.LockFile, Name: id.String()})
+	err := restic.ParallelList(ctx, repo, backend.LockFile, repo.Connections(), func(ctx context.Context, id restic.ID, size int64) error {
+		err := repo.Backend().Remove(ctx, backend.Handle{Type: backend.LockFile, Name: id.String()})
 		if err == nil {
 			atomic.AddUint32(&processed, 1)
 		}
@@ -322,7 +323,7 @@ func ForAllLocks(ctx context.Context, repo restic.Repository, excludeID *restic.
 	var m sync.Mutex
 
 	// For locks decoding is nearly for free, thus just assume were only limited by IO
-	return restic.ParallelList(ctx, repo, restic.LockFile, repo.Connections(), func(ctx context.Context, id restic.ID, size int64) error {
+	return restic.ParallelList(ctx, repo, backend.LockFile, repo.Connections(), func(ctx context.Context, id restic.ID, size int64) error {
 		if excludeID != nil && id.Equal(*excludeID) {
 			return nil
 		}

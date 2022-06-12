@@ -18,7 +18,6 @@ import (
 	"github.com/restic/restic/internal/backend/sema"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
-	"github.com/restic/restic/internal/restic"
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/ncw/swift/v2"
@@ -34,12 +33,12 @@ type beSwift struct {
 	layout.Layout
 }
 
-// ensure statically that *beSwift implements restic.Backend.
-var _ restic.Backend = &beSwift{}
+// ensure statically that *beSwift implements backend.Backend.
+var _ backend.Backend = &beSwift{}
 
 // Open opens the swift backend at a container in region. The container is
 // created if it does not exist yet.
-func Open(ctx context.Context, cfg Config, rt http.RoundTripper) (restic.Backend, error) {
+func Open(ctx context.Context, cfg Config, rt http.RoundTripper) (backend.Backend, error) {
 	debug.Log("config %#v", cfg)
 
 	sem, err := sema.New(cfg.Connections)
@@ -138,11 +137,11 @@ func (be *beSwift) HasAtomicReplace() bool {
 
 // Load runs fn with a reader that yields the contents of the file at h at the
 // given offset.
-func (be *beSwift) Load(ctx context.Context, h restic.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
+func (be *beSwift) Load(ctx context.Context, h backend.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
 	return backend.DefaultLoad(ctx, h, length, offset, be.openReader, fn)
 }
 
-func (be *beSwift) openReader(ctx context.Context, h restic.Handle, length int, offset int64) (io.ReadCloser, error) {
+func (be *beSwift) openReader(ctx context.Context, h backend.Handle, length int, offset int64) (io.ReadCloser, error) {
 	debug.Log("Load %v, length %v, offset %v", h, length, offset)
 	if err := h.Valid(); err != nil {
 		return nil, backoff.Permanent(err)
@@ -183,7 +182,7 @@ func (be *beSwift) openReader(ctx context.Context, h restic.Handle, length int, 
 }
 
 // Save stores data in the backend at the handle.
-func (be *beSwift) Save(ctx context.Context, h restic.Handle, rd restic.RewindReader) error {
+func (be *beSwift) Save(ctx context.Context, h backend.Handle, rd backend.RewindReader) error {
 	if err := h.Valid(); err != nil {
 		return backoff.Permanent(err)
 	}
@@ -209,7 +208,7 @@ func (be *beSwift) Save(ctx context.Context, h restic.Handle, rd restic.RewindRe
 }
 
 // Stat returns information about a blob.
-func (be *beSwift) Stat(ctx context.Context, h restic.Handle) (bi restic.FileInfo, err error) {
+func (be *beSwift) Stat(ctx context.Context, h backend.Handle) (bi backend.FileInfo, err error) {
 	debug.Log("%v", h)
 
 	objName := be.Filename(h)
@@ -220,14 +219,14 @@ func (be *beSwift) Stat(ctx context.Context, h restic.Handle) (bi restic.FileInf
 	obj, _, err := be.conn.Object(ctx, be.container, objName)
 	if err != nil {
 		debug.Log("Object() err %v", err)
-		return restic.FileInfo{}, errors.Wrap(err, "conn.Object")
+		return backend.FileInfo{}, errors.Wrap(err, "conn.Object")
 	}
 
-	return restic.FileInfo{Size: obj.Bytes, Name: h.Name}, nil
+	return backend.FileInfo{Size: obj.Bytes, Name: h.Name}, nil
 }
 
 // Test returns true if a blob of the given type and name exists in the backend.
-func (be *beSwift) Test(ctx context.Context, h restic.Handle) (bool, error) {
+func (be *beSwift) Test(ctx context.Context, h backend.Handle) (bool, error) {
 	objName := be.Filename(h)
 
 	be.sem.GetToken()
@@ -246,7 +245,7 @@ func (be *beSwift) Test(ctx context.Context, h restic.Handle) (bool, error) {
 }
 
 // Remove removes the blob with the given name and type.
-func (be *beSwift) Remove(ctx context.Context, h restic.Handle) error {
+func (be *beSwift) Remove(ctx context.Context, h backend.Handle) error {
 	objName := be.Filename(h)
 
 	be.sem.GetToken()
@@ -259,7 +258,7 @@ func (be *beSwift) Remove(ctx context.Context, h restic.Handle) error {
 
 // List runs fn for each file in the backend which has the type t. When an
 // error occurs (or fn returns an error), List stops and returns it.
-func (be *beSwift) List(ctx context.Context, t restic.FileType, fn func(restic.FileInfo) error) error {
+func (be *beSwift) List(ctx context.Context, t backend.FileType, fn func(backend.FileInfo) error) error {
 	debug.Log("listing %v", t)
 
 	prefix, _ := be.Basedir(t)
@@ -280,7 +279,7 @@ func (be *beSwift) List(ctx context.Context, t restic.FileType, fn func(restic.F
 					continue
 				}
 
-				fi := restic.FileInfo{
+				fi := backend.FileInfo{
 					Name: m,
 					Size: obj.Bytes,
 				}
@@ -305,9 +304,9 @@ func (be *beSwift) List(ctx context.Context, t restic.FileType, fn func(restic.F
 }
 
 // Remove keys for a specified backend type.
-func (be *beSwift) removeKeys(ctx context.Context, t restic.FileType) error {
-	return be.List(ctx, t, func(fi restic.FileInfo) error {
-		return be.Remove(ctx, restic.Handle{Type: t, Name: fi.Name})
+func (be *beSwift) removeKeys(ctx context.Context, t backend.FileType) error {
+	return be.List(ctx, t, func(fi backend.FileInfo) error {
+		return be.Remove(ctx, backend.Handle{Type: t, Name: fi.Name})
 	})
 }
 
@@ -320,12 +319,12 @@ func (be *beSwift) IsNotExist(err error) bool {
 // Delete removes all restic objects in the container.
 // It will not remove the container itself.
 func (be *beSwift) Delete(ctx context.Context) error {
-	alltypes := []restic.FileType{
-		restic.PackFile,
-		restic.KeyFile,
-		restic.LockFile,
-		restic.SnapshotFile,
-		restic.IndexFile}
+	alltypes := []backend.FileType{
+		backend.PackFile,
+		backend.KeyFile,
+		backend.LockFile,
+		backend.SnapshotFile,
+		backend.IndexFile}
 
 	for _, t := range alltypes {
 		err := be.removeKeys(ctx, t)
@@ -334,7 +333,7 @@ func (be *beSwift) Delete(ctx context.Context) error {
 		}
 	}
 
-	err := be.Remove(ctx, restic.Handle{Type: restic.ConfigFile})
+	err := be.Remove(ctx, backend.Handle{Type: backend.ConfigFile})
 	if err != nil && !be.IsNotExist(err) {
 		return err
 	}

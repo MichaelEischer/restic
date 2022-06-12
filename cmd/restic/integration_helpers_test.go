@@ -9,6 +9,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/backend/retry"
 	"github.com/restic/restic/internal/options"
 	"github.com/restic/restic/internal/repository"
@@ -200,7 +201,7 @@ func withTestEnvironment(t testing.TB) (env *testEnvironment, cleanup func()) {
 		extended: make(options.Options),
 
 		// replace this hook with "nil" if listing a filetype more than once is necessary
-		backendTestHook: func(r restic.Backend) (restic.Backend, error) { return newOrderedListOnceBackend(r), nil },
+		backendTestHook: func(r backend.Backend) (backend.Backend, error) { return newOrderedListOnceBackend(r), nil },
 	}
 
 	// always overwrite global options

@@ -6,6 +6,7 @@ import (
 	"os"
 	"path"
 
+	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/backend/layout"
 	"github.com/restic/restic/internal/backend/s3"
 	"github.com/restic/restic/internal/cache"
@@ -74,13 +75,13 @@ func retry(max int, fail func(err error), f func() error) error {
 // maxErrors for retrying renames on s3.
 const maxErrors = 20
 
-func (m *S3Layout) moveFiles(ctx context.Context, be *s3.Backend, l layout.Layout, t restic.FileType) error {
+func (m *S3Layout) moveFiles(ctx context.Context, be *s3.Backend, l layout.Layout, t backend.FileType) error {
 	printErr := func(err error) {
 		fmt.Fprintf(os.Stderr, "renaming file returned error: %v\n", err)
 	}
 
-	return be.List(ctx, t, func(fi restic.FileInfo) error {
-		h := restic.Handle{Type: t, Name: fi.Name}
+	return be.List(ctx, t, func(fi backend.FileInfo) error {
+		h := backend.Handle{Type: t, Name: fi.Name}
 		debug.Log("move %v", h)
 
 		return retry(maxErrors, printErr, func() error {
@@ -109,11 +110,11 @@ func (m *S3Layout) Apply(ctx context.Context, repo restic.Repository) error {
 
 	be.Layout = oldLayout
 
-	for _, t := range []restic.FileType{
-		restic.SnapshotFile,
-		restic.PackFile,
-		restic.KeyFile,
-		restic.LockFile,
+	for _, t := range []backend.FileType{
+		backend.SnapshotFile,
+		backend.PackFile,
+		backend.KeyFile,
+		backend.LockFile,
 	} {
 		err := m.moveFiles(ctx, be, newLayout, t)
 		if err != nil {

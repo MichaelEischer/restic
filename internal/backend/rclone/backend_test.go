@@ -5,10 +5,10 @@ import (
 	"os/exec"
 	"testing"
 
+	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/backend/rclone"
 	"github.com/restic/restic/internal/backend/test"
 	"github.com/restic/restic/internal/errors"
-	"github.com/restic/restic/internal/restic"
 	rtest "github.com/restic/restic/internal/test"
 )
 
@@ -25,7 +25,7 @@ func newTestSuite(t testing.TB) *test.Suite {
 		},
 
 		// CreateFn is a function that creates a temporary repository for the tests.
-		Create: func(config interface{}) (restic.Backend, error) {
+		Create: func(config interface{}) (backend.Backend, error) {
 			t.Logf("Create()")
 			cfg := config.(rclone.Config)
 			be, err := rclone.Create(context.TODO(), cfg)
@@ -38,7 +38,7 @@ func newTestSuite(t testing.TB) *test.Suite {
 		},
 
 		// OpenFn is a function that opens a previously created temporary repository.
-		Open: func(config interface{}) (restic.Backend, error) {
+		Open: func(config interface{}) (backend.Backend, error) {
 			t.Logf("Open()")
 			cfg := config.(rclone.Config)
 			return rclone.Open(cfg, nil)

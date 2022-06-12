@@ -9,6 +9,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
@@ -412,7 +413,7 @@ func (f *Finder) packsToBlobs(ctx context.Context, packs []string) error {
 	}
 
 	debug.Log("Looking for packs...")
-	err := f.repo.List(ctx, restic.PackFile, func(id restic.ID, size int64) error {
+	err := f.repo.List(ctx, backend.PackFile, func(id restic.ID, size int64) error {
 		idStr := id.String()
 		if _, ok := packIDs[idStr]; !ok {
 			// Look for short ID form
@@ -584,7 +585,7 @@ func runFind(ctx context.Context, opts FindOptions, gopts GlobalOptions, args []
 		}
 	}
 
-	repo, err = repository.MemorizeList(ctx, repo, restic.SnapshotFile)
+	repo, err = repository.MemorizeList(ctx, repo, backend.SnapshotFile)
 	if err != nil {
 		return err
 	}

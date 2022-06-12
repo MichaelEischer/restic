@@ -10,9 +10,9 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/fs"
-	"github.com/restic/restic/internal/restic"
 )
 
 // Cache manages a local cache.
@@ -45,10 +45,10 @@ func readVersion(dir string) (v uint, err error) {
 
 const cacheVersion = 1
 
-var cacheLayoutPaths = map[restic.FileType]string{
-	restic.PackFile:     "data",
-	restic.SnapshotFile: "snapshots",
-	restic.IndexFile:    "index",
+var cacheLayoutPaths = map[backend.FileType]string{
+	backend.PackFile:     "data",
+	backend.SnapshotFile: "snapshots",
+	backend.IndexFile:    "index",
 }
 
 const cachedirTagSignature = "Signature: 8a477f597d28d172789f06886806bc55\n"
@@ -241,7 +241,7 @@ func IsOld(t time.Time, maxAge time.Duration) bool {
 }
 
 // Wrap returns a backend with a cache.
-func (c *Cache) Wrap(be restic.Backend) restic.Backend {
+func (c *Cache) Wrap(be backend.Backend) backend.Backend {
 	return newBackend(be, c)
 }
 

@@ -12,6 +12,7 @@ import (
 	"sync"
 
 	"github.com/minio/sha256-simd"
+	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/backend/s3"
 	"github.com/restic/restic/internal/cache"
 	"github.com/restic/restic/internal/data"
@@ -96,7 +97,7 @@ func (err *ErrOldIndexFormat) Error() string {
 
 func (c *Checker) LoadSnapshots(ctx context.Context) error {
 	var err error
-	c.repo, err = repository.MemorizeList(ctx, c.repo, restic.SnapshotFile)
+	c.repo, err = repository.MemorizeList(ctx, c.repo, backend.SnapshotFile)
 	return err
 }
 
@@ -210,7 +211,7 @@ func IsOrphanedPack(err error) bool {
 	return errors.As(err, &e) && e.Orphaned
 }
 
-func isS3Legacy(b restic.Backend) bool {
+func isS3Legacy(b backend.Backend) bool {
 	// unwrap cache
 	if be, ok := b.(*cache.Backend); ok {
 		b = be.Backend
@@ -239,7 +240,7 @@ func (c *Checker) Packs(ctx context.Context, errChan chan<- error) {
 	debug.Log("listing repository packs")
 	repoPacks := make(map[restic.ID]int64)
 
-	err := c.repo.List(ctx, restic.PackFile, func(id restic.ID, size int64) error {
+	err := c.repo.List(ctx, backend.PackFile, func(id restic.ID, size int64) error {
 		repoPacks[id] = size
 		return nil
 	})
@@ -528,7 +529,7 @@ func checkPack(ctx context.Context, r restic.Repository, id restic.ID, blobs []r
 	// calculate hash on-the-fly while reading the pack and capture pack header
 	var hash restic.ID
 	var hdrBuf []byte
-	hashingLoader := func(ctx context.Context, h restic.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
+	hashingLoader := func(ctx context.Context, h backend.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
 		return r.Backend().Load(ctx, h, int(size), 0, func(rd io.Reader) error {
 			hrd := hashing.NewReader(rd, sha256.New())
 			bufRd.Reset(hrd)

@@ -5,11 +5,11 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/repository"
-	"github.com/restic/restic/internal/restic"
 )
 
 var cmdTag = &cobra.Command{
@@ -86,7 +86,7 @@ func changeTags(ctx context.Context, repo *repository.Repository, sn *data.Snaps
 		debug.Log("new snapshot saved as %v", id)
 
 		// Remove the old snapshot.
-		h := restic.Handle{Type: restic.SnapshotFile, Name: sn.ID().String()}
+		h := backend.Handle{Type: backend.SnapshotFile, Name: sn.ID().String()}
 		if err = repo.Backend().Remove(ctx, h); err != nil {
 			return false, err
 		}

@@ -5,6 +5,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/repository"
@@ -54,7 +55,7 @@ func runRecover(ctx context.Context, gopts GlobalOptions) error {
 		return err
 	}
 
-	repo, err = repository.MemorizeList(ctx, repo, restic.SnapshotFile)
+	repo, err = repository.MemorizeList(ctx, repo, backend.SnapshotFile)
 	if err != nil {
 		return err
 	}

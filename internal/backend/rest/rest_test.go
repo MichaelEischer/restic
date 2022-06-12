@@ -12,7 +12,6 @@ import (
 	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/backend/rest"
 	"github.com/restic/restic/internal/backend/test"
-	"github.com/restic/restic/internal/restic"
 	rtest "github.com/restic/restic/internal/test"
 )
 
@@ -84,13 +83,13 @@ func newTestSuite(ctx context.Context, t testing.TB, url *url.URL, minimalData b
 		},
 
 		// CreateFn is a function that creates a temporary repository for the tests.
-		Create: func(config interface{}) (restic.Backend, error) {
+		Create: func(config interface{}) (backend.Backend, error) {
 			cfg := config.(rest.Config)
 			return rest.Create(context.TODO(), cfg, tr)
 		},
 
 		// OpenFn is a function that opens a previously created temporary repository.
-		Open: func(config interface{}) (restic.Backend, error) {
+		Open: func(config interface{}) (backend.Backend, error) {
 			cfg := config.(rest.Config)
 			return rest.Open(cfg, tr)
 		},

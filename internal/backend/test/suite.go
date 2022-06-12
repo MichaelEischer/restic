@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/restic/restic/internal/restic"
+	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/test"
 )
 
@@ -19,10 +19,10 @@ type Suite struct {
 	NewConfig func() (interface{}, error)
 
 	// CreateFn is a function that creates a temporary repository for the tests.
-	Create func(cfg interface{}) (restic.Backend, error)
+	Create func(cfg interface{}) (backend.Backend, error)
 
 	// OpenFn is a function that opens a previously created temporary repository.
-	Open func(cfg interface{}) (restic.Backend, error)
+	Open func(cfg interface{}) (backend.Backend, error)
 
 	// CleanupFn removes data created during the tests.
 	Cleanup func(cfg interface{}) error
@@ -36,7 +36,7 @@ type Suite struct {
 	WaitForDelayedRemoval time.Duration
 
 	// ErrorHandler allows ignoring certain errors.
-	ErrorHandler func(testing.TB, restic.Backend, error) error
+	ErrorHandler func(testing.TB, backend.Backend, error) error
 }
 
 // RunTests executes all defined tests as subtests of t.
@@ -161,7 +161,7 @@ func (s *Suite) RunBenchmarks(b *testing.B) {
 	}
 }
 
-func (s *Suite) create(t testing.TB) restic.Backend {
+func (s *Suite) create(t testing.TB) backend.Backend {
 	be, err := s.Create(s.Config)
 	if err != nil {
 		t.Fatal(err)
@@ -169,7 +169,7 @@ func (s *Suite) create(t testing.TB) restic.Backend {
 	return be
 }
 
-func (s *Suite) open(t testing.TB) restic.Backend {
+func (s *Suite) open(t testing.TB) backend.Backend {
 	be, err := s.Open(s.Config)
 	if err != nil {
 		t.Fatal(err)
@@ -177,7 +177,7 @@ func (s *Suite) open(t testing.TB) restic.Backend {
 	return be
 }
 
-func (s *Suite) close(t testing.TB, be restic.Backend) {
+func (s *Suite) close(t testing.TB, be backend.Backend) {
 	err := be.Close()
 	if err != nil {
 		t.Fatal(err)

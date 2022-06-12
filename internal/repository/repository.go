@@ -35,7 +35,7 @@ const MaxPackSize = 128 * 1024 * 1024
 
 // Repository is used to access a repository in a backend.
 type Repository struct {
-	be    restic.Backend
+	be    backend.Backend
 	cfg   restic.Config
 	key   *crypto.Key
 	keyID restic.ID
@@ -106,7 +106,7 @@ func (c *CompressionMode) Type() string {
 }
 
 // New returns a new repository with backend be.
-func New(be restic.Backend, opts Options) (*Repository, error) {
+func New(be backend.Backend, opts Options) (*Repository, error) {
 	if opts.PackSize == 0 {
 		opts.PackSize = DefaultPackSize
 	}
@@ -167,20 +167,20 @@ func (r *Repository) SetDryRun() {
 // LoadUnpacked loads and decrypts the file with the given type and ID, using
 // the supplied buffer (which must be empty). If the buffer is nil, a new
 // buffer will be allocated and returned.
-func (r *Repository) LoadUnpacked(ctx context.Context, t restic.FileType, id restic.ID, buf []byte) ([]byte, error) {
+func (r *Repository) LoadUnpacked(ctx context.Context, t backend.FileType, id restic.ID, buf []byte) ([]byte, error) {
 	if len(buf) != 0 {
 		panic("buf is not empty")
 	}
 
 	debug.Log("load %v with id %v", t, id)
 
-	if t == restic.ConfigFile {
+	if t == backend.ConfigFile {
 		id = restic.ID{}
 	}
 
 	ctx, cancel := context.WithCancel(ctx)
 
-	h := restic.Handle{Type: t, Name: id.String()}
+	h := backend.Handle{Type: t, Name: id.String()}
 	retriedInvalidData := false
 	err := r.be.Load(ctx, h, 0, 0, func(rd io.Reader) error {
 		// make sure this call is idempotent, in case an error occurs
@@ -191,7 +191,7 @@ func (r *Repository) LoadUnpacked(ctx context.Context, t restic.FileType, id res
 		}
 		buf = wr.Bytes()
 
-		if t != restic.ConfigFile && !restic.Hash(buf).Equal(id) {
+		if t != backend.ConfigFile && !restic.Hash(buf).Equal(id) {
 			debug.Log("retry loading broken blob %v", h)
 			if !retriedInvalidData {
 				retriedInvalidData = true
@@ -212,7 +212,7 @@ func (r *Repository) LoadUnpacked(ctx context.Context, t restic.FileType, id res
 	if err != nil {
 		return nil, err
 	}
-	if t != restic.ConfigFile {
+	if t != backend.ConfigFile {
 		return r.decompressUnpacked(plaintext)
 	}
 
@@ -220,7 +220,7 @@ func (r *Repository) LoadUnpacked(ctx context.Context, t restic.FileType, id res
 }
 
 type haver interface {
-	Has(restic.Handle) bool
+	Has(backend.Handle) bool
 }
 
 // sortCachedPacksFirst moves all cached pack files to the front of blobs.
@@ -238,7 +238,7 @@ func sortCachedPacksFirst(cache haver, blobs []restic.PackedBlob) {
 	noncached := make([]restic.PackedBlob, 0, len(blobs)/2)
 
 	for _, blob := range blobs {
-		if cache.Has(restic.Handle{Type: restic.PackFile, Name: blob.PackID.String()}) {
+		if cache.Has(backend.Handle{Type: backend.PackFile, Name: blob.PackID.String()}) {
 			cached = append(cached, blob)
 			continue
 		}
@@ -272,7 +272,7 @@ func (r *Repository) LoadBlob(ctx context.Context, t restic.BlobType, id restic.
 		}
 
 		// load blob from pack
-		h := restic.Handle{Type: restic.PackFile, Name: blob.PackID.String(), IsMetadata: t.IsMetadata()}
+		h := backend.Handle{Type: backend.PackFile, Name: blob.PackID.String(), IsMetadata: t.IsMetadata()}
 
 		switch {
 		case cap(buf) < int(blob.Length):
@@ -462,8 +462,8 @@ func (r *Repository) decompressUnpacked(p []byte) ([]byte, error) {
 
 // SaveUnpacked encrypts data and stores it in the backend. Returned is the
 // storage hash.
-func (r *Repository) SaveUnpacked(ctx context.Context, t restic.FileType, p []byte) (id restic.ID, err error) {
-	if t != restic.ConfigFile {
+func (r *Repository) SaveUnpacked(ctx context.Context, t backend.FileType, p []byte) (id restic.ID, err error) {
+	if t != backend.ConfigFile {
 		p, err = r.compressUnpacked(p)
 		if err != nil {
 			return restic.ID{}, err
@@ -477,14 +477,14 @@ func (r *Repository) SaveUnpacked(ctx context.Context, t restic.FileType, p []by
 
 	ciphertext = r.key.Seal(ciphertext, nonce, p, nil)
 
-	if t == restic.ConfigFile {
+	if t == backend.ConfigFile {
 		id = restic.ID{}
 	} else {
 		id = restic.Hash(ciphertext)
 	}
-	h := restic.Handle{Type: t, Name: id.String()}
+	h := backend.Handle{Type: t, Name: id.String()}
 
-	err = r.be.Save(ctx, h, restic.NewByteReader(ciphertext, r.be.Hasher()))
+	err = r.be.Save(ctx, h, backend.NewByteReader(ciphertext, r.be.Hasher()))
 	if err != nil {
 		debug.Log("error saving blob %v: %v", h, err)
 		return restic.ID{}, err
@@ -549,7 +549,7 @@ func (r *Repository) flushPacks(ctx context.Context) error {
 }
 
 // Backend returns the backend for the repository.
-func (r *Repository) Backend() restic.Backend {
+func (r *Repository) Backend() backend.Backend {
 	return r.be
 }
 
@@ -684,7 +684,7 @@ func (r *Repository) prepareCache() error {
 	debug.Log("prepare cache with %d index files", len(indexIDs))
 
 	// clear old index files
-	err := r.Cache.Clear(restic.IndexFile, indexIDs)
+	err := r.Cache.Clear(backend.IndexFile, indexIDs)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error clearing index files in cache: %v\n", err)
 	}
@@ -692,7 +692,7 @@ func (r *Repository) prepareCache() error {
 	packs := r.idx.Packs(restic.NewIDSet())
 
 	// clear old packs
-	err = r.Cache.Clear(restic.PackFile, packs)
+	err = r.Cache.Clear(backend.PackFile, packs)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "error clearing pack files in cache: %v\n", err)
 	}
@@ -732,7 +732,7 @@ func (r *Repository) Init(ctx context.Context, version uint, password string, ch
 		return fmt.Errorf("repository version %v too low", version)
 	}
 
-	has, err := r.be.Test(ctx, restic.Handle{Type: restic.ConfigFile})
+	has, err := r.be.Test(ctx, backend.Handle{Type: backend.ConfigFile})
 	if err != nil {
 		return err
 	}
@@ -776,8 +776,8 @@ func (r *Repository) KeyID() restic.ID {
 }
 
 // List runs fn for all files of type t in the repo.
-func (r *Repository) List(ctx context.Context, t restic.FileType, fn func(restic.ID, int64) error) error {
-	return r.be.List(ctx, t, func(fi restic.FileInfo) error {
+func (r *Repository) List(ctx context.Context, t backend.FileType, fn func(restic.ID, int64) error) error {
+	return r.be.List(ctx, t, func(fi backend.FileInfo) error {
 		id, err := restic.ParseID(fi.Name)
 		if err != nil {
 			debug.Log("unable to parse %v as an ID", fi.Name)
@@ -790,7 +790,7 @@ func (r *Repository) List(ctx context.Context, t restic.FileType, fn func(restic
 // ListPack returns the list of blobs saved in the pack id and the length of
 // the the pack header.
 func (r *Repository) ListPack(ctx context.Context, id restic.ID, size int64) ([]restic.Blob, uint32, error) {
-	h := restic.Handle{Type: restic.PackFile, Name: id.String()}
+	h := backend.Handle{Type: backend.PackFile, Name: id.String()}
 
 	return pack.List(r.Key(), backend.ReaderAt(ctx, r.Backend(), h), size)
 }
@@ -840,7 +840,7 @@ func (r *Repository) SaveBlob(ctx context.Context, t restic.BlobType, buf []byte
 	return newID, known, size, err
 }
 
-type BackendLoadFn func(ctx context.Context, h restic.Handle, length int, offset int64, fn func(rd io.Reader) error) error
+type BackendLoadFn func(ctx context.Context, h backend.Handle, length int, offset int64, fn func(rd io.Reader) error) error
 
 // Skip sections with more than 4MB unused blobs
 const maxUnusedRange = 4 * 1024 * 1024
@@ -881,7 +881,7 @@ func StreamPack(ctx context.Context, beLoad BackendLoadFn, key *crypto.Key, pack
 }
 
 func streamPackPart(ctx context.Context, beLoad BackendLoadFn, key *crypto.Key, packID restic.ID, blobs []restic.Blob, handleBlobFn func(blob restic.BlobHandle, buf []byte, err error) error) error {
-	h := restic.Handle{Type: restic.PackFile, Name: packID.String(), IsMetadata: false}
+	h := backend.Handle{Type: backend.PackFile, Name: packID.String(), IsMetadata: false}
 
 	dataStart := blobs[0].Offset
 	dataEnd := blobs[len(blobs)-1].Offset + blobs[len(blobs)-1].Length

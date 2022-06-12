@@ -59,7 +59,7 @@ func TestZeroLengthRead(t *testing.T) {
 		}
 	}()
 
-	err = be.Load(context.TODO(), restic.Handle{Type: restic.ConfigFile}, 0, 0, func(rd io.Reader) error {
+	err = be.Load(context.TODO(), backend.Handle{Type: backend.ConfigFile}, 0, 0, func(rd io.Reader) error {
 		_, err := ioutil.ReadAll(rd)
 		if err == nil {
 			t.Fatal("ReadAll should have returned an 'Unexpected EOF' error")

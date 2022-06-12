@@ -9,16 +9,16 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/restic/restic/internal/restic"
+	"github.com/restic/restic/internal/backend"
 
 	"github.com/restic/restic/internal/backend/dryrun"
 	"github.com/restic/restic/internal/backend/mem"
 )
 
 // make sure that Backend implements backend.Backend
-var _ restic.Backend = &dryrun.Backend{}
+var _ backend.Backend = &dryrun.Backend{}
 
-func newBackends() (*dryrun.Backend, restic.Backend) {
+func newBackends() (*dryrun.Backend, backend.Backend) {
 	m := mem.New()
 	return dryrun.New(m), m
 }
@@ -31,7 +31,7 @@ func TestDry(t *testing.T) {
 	// won't pass. Instead, perform a series of operations over the backend, testing the state
 	// at each step.
 	steps := []struct {
-		be      restic.Backend
+		be      backend.Backend
 		op      string
 		fname   string
 		content string
@@ -68,10 +68,10 @@ func TestDry(t *testing.T) {
 		var err error
 		var boolRes bool
 
-		handle := restic.Handle{Type: restic.PackFile, Name: step.fname}
+		handle := backend.Handle{Type: backend.PackFile, Name: step.fname}
 		switch step.op {
 		case "save":
-			err = step.be.Save(ctx, handle, restic.NewByteReader([]byte(step.content), step.be.Hasher()))
+			err = step.be.Save(ctx, handle, backend.NewByteReader([]byte(step.content), step.be.Hasher()))
 		case "test":
 			boolRes, err = step.be.Test(ctx, handle)
 			if boolRes != (step.content != "") {
@@ -79,7 +79,7 @@ func TestDry(t *testing.T) {
 			}
 		case "list":
 			fileList := []string{}
-			err = step.be.List(ctx, restic.PackFile, func(fi restic.FileInfo) error {
+			err = step.be.List(ctx, backend.PackFile, func(fi backend.FileInfo) error {
 				fileList = append(fileList, fi.Name)
 				return nil
 			})
@@ -98,7 +98,7 @@ func TestDry(t *testing.T) {
 		case "remove":
 			err = step.be.Remove(ctx, handle)
 		case "stat":
-			var fi restic.FileInfo
+			var fi backend.FileInfo
 			fi, err = step.be.Stat(ctx, handle)
 			if err == nil {
 				fis := fmt.Sprintf("%s %d", fi.Name, fi.Size)

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/crypto"
 	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/repository"
@@ -91,7 +92,7 @@ func runStats(ctx context.Context, gopts GlobalOptions, args []string) error {
 		}
 	}
 
-	repo, err = repository.MemorizeList(ctx, repo, restic.SnapshotFile)
+	repo, err = repository.MemorizeList(ctx, repo, backend.SnapshotFile)
 	if err != nil {
 		return err
 	}

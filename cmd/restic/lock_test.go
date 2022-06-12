@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/repository"
 	"github.com/restic/restic/internal/restic"
@@ -92,11 +93,11 @@ func TestLockConflict(t *testing.T) {
 }
 
 type writeOnceBackend struct {
-	restic.Backend
+	backend.Backend
 	written bool
 }
 
-func (b *writeOnceBackend) Save(ctx context.Context, h restic.Handle, rd restic.RewindReader) error {
+func (b *writeOnceBackend) Save(ctx context.Context, h backend.Handle, rd backend.RewindReader) error {
 	if b.written {
 		return fmt.Errorf("fail after first write")
 	}
@@ -105,7 +106,7 @@ func (b *writeOnceBackend) Save(ctx context.Context, h restic.Handle, rd restic.
 }
 
 func TestLockFailedRefresh(t *testing.T) {
-	repo, cleanup, _ := openTestRepo(t, func(r restic.Backend) (restic.Backend, error) {
+	repo, cleanup, _ := openTestRepo(t, func(r backend.Backend) (backend.Backend, error) {
 		return &writeOnceBackend{Backend: r}, nil
 	})
 	defer cleanup()

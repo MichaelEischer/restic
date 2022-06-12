@@ -16,6 +16,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/klauspost/compress/zstd"
+	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/backend/local"
 	"github.com/restic/restic/internal/crypto"
 	"github.com/restic/restic/internal/index"
@@ -232,7 +233,7 @@ func benchmarkLoadUnpacked(b *testing.B, version uint) {
 
 	dataID := restic.Hash(buf)
 
-	storageID, err := repo.SaveUnpacked(context.TODO(), restic.PackFile, buf)
+	storageID, err := repo.SaveUnpacked(context.TODO(), backend.PackFile, buf)
 	rtest.OK(b, err)
 	// rtest.OK(b, repo.Flush())
 
@@ -240,7 +241,7 @@ func benchmarkLoadUnpacked(b *testing.B, version uint) {
 	b.SetBytes(int64(length))
 
 	for i := 0; i < b.N; i++ {
-		data, err := repo.LoadUnpacked(context.TODO(), restic.PackFile, storageID, nil)
+		data, err := repo.LoadUnpacked(context.TODO(), backend.PackFile, storageID, nil)
 		rtest.OK(b, err)
 
 		// See comment in BenchmarkLoadBlob.
@@ -269,7 +270,7 @@ func TestRepositoryLoadIndex(t *testing.T) {
 
 // loadIndex loads the index id from backend and returns it.
 func loadIndex(ctx context.Context, repo restic.Repository, id restic.ID) (*index.Index, error) {
-	buf, err := repo.LoadUnpacked(ctx, restic.IndexFile, id, nil)
+	buf, err := repo.LoadUnpacked(ctx, backend.IndexFile, id, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -287,17 +288,17 @@ func TestRepositoryLoadUnpackedBroken(t *testing.T) {
 
 	data := rtest.Random(23, 12345)
 	id := restic.Hash(data)
-	h := restic.Handle{Type: restic.IndexFile, Name: id.String()}
+	h := backend.Handle{Type: backend.IndexFile, Name: id.String()}
 	// damage buffer
 	data[0] ^= 0xff
 
 	repo := repository.TestOpenLocal(t, repodir)
 	// store broken file
-	err := repo.Backend().Save(context.TODO(), h, restic.NewByteReader(data, nil))
+	err := repo.Backend().Save(context.TODO(), h, backend.NewByteReader(data, nil))
 	rtest.OK(t, err)
 
 	// without a retry backend this will just return an error that the file is broken
-	_, err = repo.LoadUnpacked(context.TODO(), restic.IndexFile, id, nil)
+	_, err = repo.LoadUnpacked(context.TODO(), backend.IndexFile, id, nil)
 	if err == nil {
 		t.Fatal("missing expected error")
 	}
@@ -305,12 +306,12 @@ func TestRepositoryLoadUnpackedBroken(t *testing.T) {
 }
 
 type damageOnceBackend struct {
-	restic.Backend
+	backend.Backend
 }
 
-func (be *damageOnceBackend) Load(ctx context.Context, h restic.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
+func (be *damageOnceBackend) Load(ctx context.Context, h backend.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
 	// don't break the config file as we can't retry it
-	if h.Type == restic.ConfigFile {
+	if h.Type == backend.ConfigFile {
 		return be.Backend.Load(ctx, h, length, offset, fn)
 	}
 	// return broken data on the first try
@@ -362,7 +363,7 @@ func benchmarkLoadIndex(b *testing.B, version uint) {
 	rtest.OK(b, err)
 
 	b.Logf("index saved as %v", id.Str())
-	fi, err := repo.Backend().Stat(context.TODO(), restic.Handle{Type: restic.IndexFile, Name: id.String()})
+	fi, err := repo.Backend().Stat(context.TODO(), backend.Handle{Type: backend.IndexFile, Name: id.String()})
 	rtest.OK(b, err)
 	b.Logf("filesize is %v", fi.Size)
 
@@ -415,7 +416,7 @@ func testRepositoryIncrementalIndex(t *testing.T, version uint) {
 
 	packEntries := make(map[restic.ID]map[restic.ID]struct{})
 
-	err := repo.List(context.TODO(), restic.IndexFile, func(id restic.ID, size int64) error {
+	err := repo.List(context.TODO(), backend.IndexFile, func(id restic.ID, size int64) error {
 		idx, err := loadIndex(context.TODO(), repo, id)
 		rtest.OK(t, err)
 
@@ -541,7 +542,7 @@ func testStreamPack(t *testing.T, version uint) {
 	packfileBlobs, packfile := buildPackfileWithoutHeader(t, blobSizes, &key, compress)
 
 	loadCalls := 0
-	load := func(ctx context.Context, h restic.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
+	load := func(ctx context.Context, h backend.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
 		data := packfile
 
 		if offset > int64(len(data)) {

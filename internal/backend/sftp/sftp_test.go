@@ -9,10 +9,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/backend/sftp"
 	"github.com/restic/restic/internal/backend/test"
 	"github.com/restic/restic/internal/errors"
-	"github.com/restic/restic/internal/restic"
 	rtest "github.com/restic/restic/internal/test"
 )
 
@@ -50,13 +50,13 @@ func newTestSuite(t testing.TB) *test.Suite {
 		},
 
 		// CreateFn is a function that creates a temporary repository for the tests.
-		Create: func(config interface{}) (restic.Backend, error) {
+		Create: func(config interface{}) (backend.Backend, error) {
 			cfg := config.(sftp.Config)
 			return sftp.Create(context.TODO(), cfg)
 		},
 
 		// OpenFn is a function that opens a previously created temporary repository.
-		Open: func(config interface{}) (restic.Backend, error) {
+		Open: func(config interface{}) (backend.Backend, error) {
 			cfg := config.(sftp.Config)
 			return sftp.Open(context.TODO(), cfg)
 		},

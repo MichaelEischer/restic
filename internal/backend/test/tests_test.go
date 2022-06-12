@@ -1,4 +1,4 @@
-package mem_test
+package test_test
 
 import (
 	"context"
@@ -15,7 +15,7 @@ type memConfig struct {
 	be backend.Backend
 }
 
-func newTestSuite() *test.Suite {
+func newTestSuite(t testing.TB) *test.Suite {
 	return &test.Suite{
 		// NewConfig returns a config for a new temporary backend that will be used in tests.
 		NewConfig: func() (interface{}, error) {
@@ -58,9 +58,9 @@ func newTestSuite() *test.Suite {
 }
 
 func TestSuiteBackendMem(t *testing.T) {
-	newTestSuite().RunTests(t)
+	newTestSuite(t).RunTests(t)
 }
 
-func BenchmarkSuiteBackendMem(t *testing.B) {
-	newTestSuite().RunBenchmarks(t)
+func BenchmarkSuiteBackendMem(b *testing.B) {
+	newTestSuite(b).RunBenchmarks(b)
 }

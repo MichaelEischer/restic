@@ -3,11 +3,12 @@ package restic
 import (
 	"context"
 
+	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/debug"
 	"golang.org/x/sync/errgroup"
 )
 
-func ParallelList(ctx context.Context, r Lister, t FileType, parallelism uint, fn func(context.Context, ID, int64) error) error {
+func ParallelList(ctx context.Context, r Lister, t backend.FileType, parallelism uint, fn func(context.Context, ID, int64) error) error {
 
 	type FileIDInfo struct {
 		ID

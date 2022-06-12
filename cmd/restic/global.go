@@ -31,7 +31,6 @@ import (
 	"github.com/restic/restic/internal/fs"
 	"github.com/restic/restic/internal/options"
 	"github.com/restic/restic/internal/repository"
-	"github.com/restic/restic/internal/restic"
 	"github.com/restic/restic/internal/textfile"
 	"github.com/restic/restic/internal/ui/termstatus"
 
@@ -47,7 +46,7 @@ var version = "0.14.0-dev (compiled manually)"
 // TimeFormat is the format used for all timestamps printed by restic.
 const TimeFormat = "2006-01-02 15:04:05"
 
-type backendWrapper func(r restic.Backend) (restic.Backend, error)
+type backendWrapper func(r backend.Backend) (backend.Backend, error)
 
 // GlobalOptions hold all global options for restic.
 type GlobalOptions struct {
@@ -696,14 +695,14 @@ func parseConfig(loc location.Location, opts options.Options) (interface{}, erro
 }
 
 // Open the backend specified by a location config.
-func open(ctx context.Context, s string, gopts GlobalOptions, opts options.Options) (restic.Backend, error) {
+func open(ctx context.Context, s string, gopts GlobalOptions, opts options.Options) (backend.Backend, error) {
 	debug.Log("parsing location %v", location.StripPassword(s))
 	loc, err := location.Parse(s)
 	if err != nil {
 		return nil, errors.Fatalf("parsing repository location failed: %v", err)
 	}
 
-	var be restic.Backend
+	var be backend.Backend
 
 	cfg, err := parseConfig(loc, opts)
 	if err != nil {
@@ -761,7 +760,7 @@ func open(ctx context.Context, s string, gopts GlobalOptions, opts options.Optio
 	}
 
 	// check if config is there
-	fi, err := be.Stat(ctx, restic.Handle{Type: restic.ConfigFile})
+	fi, err := be.Stat(ctx, backend.Handle{Type: backend.ConfigFile})
 	if err != nil {
 		return nil, errors.Fatalf("unable to open config file: %v\nIs there a repository at the following location?\n%v", err, location.StripPassword(s))
 	}
@@ -774,7 +773,7 @@ func open(ctx context.Context, s string, gopts GlobalOptions, opts options.Optio
 }
 
 // Create the backend specified by URI.
-func create(ctx context.Context, s string, opts options.Options) (restic.Backend, error) {
+func create(ctx context.Context, s string, opts options.Options) (backend.Backend, error) {
 	debug.Log("parsing location %v", s)
 	loc, err := location.Parse(s)
 	if err != nil {

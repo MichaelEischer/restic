@@ -15,7 +15,6 @@ import (
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/fs"
-	"github.com/restic/restic/internal/restic"
 
 	"github.com/cenkalti/backoff/v4"
 )
@@ -28,8 +27,8 @@ type Local struct {
 	backend.Modes
 }
 
-// ensure statically that *Local implements restic.Backend.
-var _ restic.Backend = &Local{}
+// ensure statically that *Local implements backend.Backend.
+var _ backend.Backend = &Local{}
 
 const defaultLayout = "default"
 
@@ -44,7 +43,7 @@ func open(ctx context.Context, cfg Config) (*Local, error) {
 		return nil, err
 	}
 
-	fi, err := fs.Stat(l.Filename(restic.Handle{Type: restic.ConfigFile}))
+	fi, err := fs.Stat(l.Filename(backend.Handle{Type: backend.ConfigFile}))
 	m := backend.DeriveModesFromFileInfo(fi, err)
 	debug.Log("using (%03O file, %03O dir) permissions", m.File, m.Dir)
 
@@ -73,7 +72,7 @@ func Create(ctx context.Context, cfg Config) (*Local, error) {
 	}
 
 	// test if config file already exists
-	_, err = fs.Lstat(be.Filename(restic.Handle{Type: restic.ConfigFile}))
+	_, err = fs.Lstat(be.Filename(backend.Handle{Type: backend.ConfigFile}))
 	if err == nil {
 		return nil, errors.New("config file already exists")
 	}
@@ -114,7 +113,7 @@ func (b *Local) IsNotExist(err error) bool {
 }
 
 // Save stores data in the backend at the handle.
-func (b *Local) Save(ctx context.Context, h restic.Handle, rd restic.RewindReader) (err error) {
+func (b *Local) Save(ctx context.Context, h backend.Handle, rd backend.RewindReader) (err error) {
 	debug.Log("Save %v", h)
 	if err := h.Valid(); err != nil {
 		return backoff.Permanent(err)
@@ -213,11 +212,11 @@ var tempFile = ioutil.TempFile // Overridden by test.
 
 // Load runs fn with a reader that yields the contents of the file at h at the
 // given offset.
-func (b *Local) Load(ctx context.Context, h restic.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
+func (b *Local) Load(ctx context.Context, h backend.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
 	return backend.DefaultLoad(ctx, h, length, offset, b.openReader, fn)
 }
 
-func (b *Local) openReader(ctx context.Context, h restic.Handle, length int, offset int64) (io.ReadCloser, error) {
+func (b *Local) openReader(ctx context.Context, h backend.Handle, length int, offset int64) (io.ReadCloser, error) {
 	debug.Log("Load %v, length %v, offset %v", h, length, offset)
 	if err := h.Valid(); err != nil {
 		return nil, backoff.Permanent(err)
@@ -253,10 +252,10 @@ func (b *Local) openReader(ctx context.Context, h restic.Handle, length int, off
 }
 
 // Stat returns information about a blob.
-func (b *Local) Stat(ctx context.Context, h restic.Handle) (restic.FileInfo, error) {
+func (b *Local) Stat(ctx context.Context, h backend.Handle) (backend.FileInfo, error) {
 	debug.Log("Stat %v", h)
 	if err := h.Valid(); err != nil {
-		return restic.FileInfo{}, backoff.Permanent(err)
+		return backend.FileInfo{}, backoff.Permanent(err)
 	}
 
 	b.sem.GetToken()
@@ -264,14 +263,14 @@ func (b *Local) Stat(ctx context.Context, h restic.Handle) (restic.FileInfo, err
 
 	fi, err := fs.Stat(b.Filename(h))
 	if err != nil {
-		return restic.FileInfo{}, errors.WithStack(err)
+		return backend.FileInfo{}, errors.WithStack(err)
 	}
 
-	return restic.FileInfo{Size: fi.Size(), Name: h.Name}, nil
+	return backend.FileInfo{Size: fi.Size(), Name: h.Name}, nil
 }
 
 // Test returns true if a blob of the given type and name exists in the backend.
-func (b *Local) Test(ctx context.Context, h restic.Handle) (bool, error) {
+func (b *Local) Test(ctx context.Context, h backend.Handle) (bool, error) {
 	debug.Log("Test %v", h)
 
 	b.sem.GetToken()
@@ -289,7 +288,7 @@ func (b *Local) Test(ctx context.Context, h restic.Handle) (bool, error) {
 }
 
 // Remove removes the blob with the given name and type.
-func (b *Local) Remove(ctx context.Context, h restic.Handle) error {
+func (b *Local) Remove(ctx context.Context, h backend.Handle) error {
 	debug.Log("Remove %v", h)
 	fn := b.Filename(h)
 
@@ -307,7 +306,7 @@ func (b *Local) Remove(ctx context.Context, h restic.Handle) error {
 
 // List runs fn for each file in the backend which has the type t. When an
 // error occurs (or fn returns an error), List stops and returns it.
-func (b *Local) List(ctx context.Context, t restic.FileType, fn func(restic.FileInfo) error) (err error) {
+func (b *Local) List(ctx context.Context, t backend.FileType, fn func(backend.FileInfo) error) (err error) {
 	debug.Log("List %v", t)
 
 	basedir, subdirs := b.Basedir(t)
@@ -329,7 +328,7 @@ func (b *Local) List(ctx context.Context, t restic.FileType, fn func(restic.File
 // two levels of directory structure (including dir itself as the first level).
 // Also, visitDirs assumes it sees a directory full of directories, while
 // visitFiles wants a directory full or regular files.
-func visitDirs(ctx context.Context, dir string, fn func(restic.FileInfo) error) error {
+func visitDirs(ctx context.Context, dir string, fn func(backend.FileInfo) error) error {
 	d, err := fs.Open(dir)
 	if err != nil {
 		return err
@@ -356,7 +355,7 @@ func visitDirs(ctx context.Context, dir string, fn func(restic.FileInfo) error) 
 	return ctx.Err()
 }
 
-func visitFiles(ctx context.Context, dir string, fn func(restic.FileInfo) error, ignoreNotADirectory bool) error {
+func visitFiles(ctx context.Context, dir string, fn func(backend.FileInfo) error, ignoreNotADirectory bool) error {
 	d, err := fs.Open(dir)
 	if err != nil {
 		return err
@@ -390,7 +389,7 @@ func visitFiles(ctx context.Context, dir string, fn func(restic.FileInfo) error,
 		default:
 		}
 
-		err := fn(restic.FileInfo{
+		err := fn(backend.FileInfo{
 			Name: fi.Name(),
 			Size: fi.Size(),
 		})

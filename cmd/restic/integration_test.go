@@ -20,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/filter"
@@ -286,7 +287,7 @@ func testRunForgetJSON(t testing.TB, gopts GlobalOptions, args ...string) {
 
 func testRunPrune(t testing.TB, gopts GlobalOptions, opts PruneOptions) {
 	oldHook := gopts.backendTestHook
-	gopts.backendTestHook = func(r restic.Backend) (restic.Backend, error) { return newListOnceBackend(r), nil }
+	gopts.backendTestHook = func(r backend.Backend) (backend.Backend, error) { return newListOnceBackend(r), nil }
 	defer func() {
 		gopts.backendTestHook = oldHook
 	}()
@@ -453,11 +454,11 @@ func removePacksExcept(gopts GlobalOptions, t *testing.T, keep restic.IDSet, rem
 	})
 
 	// remove all packs containing data blobs
-	rtest.OK(t, r.List(context.TODO(), restic.PackFile, func(id restic.ID, size int64) error {
+	rtest.OK(t, r.List(context.TODO(), backend.PackFile, func(id restic.ID, size int64) error {
 		if treePacks.Has(id) != removeTreePacks || keep.Has(id) {
 			return nil
 		}
-		return r.Backend().Remove(context.TODO(), restic.Handle{Type: restic.PackFile, Name: id.String()})
+		return r.Backend().Remove(context.TODO(), backend.Handle{Type: backend.PackFile, Name: id.String()})
 	}))
 }
 
@@ -519,7 +520,7 @@ func TestBackupTreeLoadError(t *testing.T) {
 
 	// delete the subdirectory pack first
 	for id := range treePacks {
-		rtest.OK(t, r.Backend().Remove(context.TODO(), restic.Handle{Type: restic.PackFile, Name: id.String()}))
+		rtest.OK(t, r.Backend().Remove(context.TODO(), backend.Handle{Type: backend.PackFile, Name: id.String()}))
 	}
 	testRunRebuildIndex(t, env.gopts)
 	// now the repo is missing the tree blob in the index; check should report this
@@ -1109,11 +1110,11 @@ func TestKeyAddRemove(t *testing.T) {
 }
 
 type emptySaveBackend struct {
-	restic.Backend
+	backend.Backend
 }
 
-func (b *emptySaveBackend) Save(ctx context.Context, h restic.Handle, rd restic.RewindReader) error {
-	return b.Backend.Save(ctx, h, restic.NewByteReader([]byte{}, nil))
+func (b *emptySaveBackend) Save(ctx context.Context, h backend.Handle, rd backend.RewindReader) error {
+	return b.Backend.Save(ctx, h, backend.NewByteReader([]byte{}, nil))
 }
 
 func TestKeyProblems(t *testing.T) {
@@ -1121,7 +1122,7 @@ func TestKeyProblems(t *testing.T) {
 	defer cleanup()
 
 	testRunInit(t, env.gopts)
-	env.gopts.backendTestHook = func(r restic.Backend) (restic.Backend, error) {
+	env.gopts.backendTestHook = func(r backend.Backend) (backend.Backend, error) {
 		return &emptySaveBackend{r}, nil
 	}
 
@@ -1489,17 +1490,17 @@ func TestRebuildIndexAlwaysFull(t *testing.T) {
 
 // indexErrorBackend modifies the first index after reading.
 type indexErrorBackend struct {
-	restic.Backend
+	backend.Backend
 	lock     sync.Mutex
 	hasErred bool
 }
 
-func (b *indexErrorBackend) Load(ctx context.Context, h restic.Handle, length int, offset int64, consumer func(rd io.Reader) error) error {
+func (b *indexErrorBackend) Load(ctx context.Context, h backend.Handle, length int, offset int64, consumer func(rd io.Reader) error) error {
 	return b.Backend.Load(ctx, h, length, offset, func(rd io.Reader) error {
 		// protect hasErred
 		b.lock.Lock()
 		defer b.lock.Unlock()
-		if !b.hasErred && h.Type == restic.IndexFile {
+		if !b.hasErred && h.Type == backend.IndexFile {
 			b.hasErred = true
 			return consumer(errorReadCloser{rd})
 		}
@@ -1520,7 +1521,7 @@ func (erd errorReadCloser) Read(p []byte) (int, error) {
 }
 
 func TestRebuildIndexDamage(t *testing.T) {
-	testRebuildIndex(t, func(r restic.Backend) (restic.Backend, error) {
+	testRebuildIndex(t, func(r backend.Backend) (backend.Backend, error) {
 		return &indexErrorBackend{
 			Backend: r,
 		}, nil
@@ -1528,11 +1529,11 @@ func TestRebuildIndexDamage(t *testing.T) {
 }
 
 type appendOnlyBackend struct {
-	restic.Backend
+	backend.Backend
 }
 
 // called via repo.Backend().Remove()
-func (b *appendOnlyBackend) Remove(ctx context.Context, h restic.Handle) error {
+func (b *appendOnlyBackend) Remove(ctx context.Context, h backend.Handle) error {
 	return errors.Errorf("Failed to remove %v", h)
 }
 
@@ -1548,7 +1549,7 @@ func TestRebuildIndexFailsOnAppendOnly(t *testing.T) {
 		globalOptions.stdout = os.Stdout
 	}()
 
-	env.gopts.backendTestHook = func(r restic.Backend) (restic.Backend, error) {
+	env.gopts.backendTestHook = func(r backend.Backend) (backend.Backend, error) {
 		return &appendOnlyBackend{r}, nil
 	}
 	err := runRebuildIndex(context.TODO(), RebuildIndexOptions{}, env.gopts)
@@ -1658,7 +1659,7 @@ func listPacks(gopts GlobalOptions, t *testing.T) restic.IDSet {
 
 	packs := restic.NewIDSet()
 
-	rtest.OK(t, r.List(context.TODO(), restic.PackFile, func(id restic.ID, size int64) error {
+	rtest.OK(t, r.List(context.TODO(), backend.PackFile, func(id restic.ID, size int64) error {
 		packs.Insert(id)
 		return nil
 	}))
@@ -1694,7 +1695,7 @@ func TestPruneWithDamagedRepository(t *testing.T) {
 		"expected one snapshot, got %v", snapshotIDs)
 
 	oldHook := env.gopts.backendTestHook
-	env.gopts.backendTestHook = func(r restic.Backend) (restic.Backend, error) { return newListOnceBackend(r), nil }
+	env.gopts.backendTestHook = func(r backend.Backend) (backend.Backend, error) { return newListOnceBackend(r), nil }
 	defer func() {
 		env.gopts.backendTestHook = oldHook
 	}()
@@ -1789,32 +1790,32 @@ func testEdgeCaseRepo(t *testing.T, tarfile string, optionsCheck CheckOptions, o
 // backends (like e.g. Amazon S3) as the second listing may be inconsistent to what
 // is expected by the first listing + some operations.
 type listOnceBackend struct {
-	restic.Backend
-	listedFileType map[restic.FileType]bool
+	backend.Backend
+	listedFileType map[backend.FileType]bool
 	strictOrder    bool
 }
 
-func newListOnceBackend(be restic.Backend) *listOnceBackend {
+func newListOnceBackend(be backend.Backend) *listOnceBackend {
 	return &listOnceBackend{
 		Backend:        be,
-		listedFileType: make(map[restic.FileType]bool),
+		listedFileType: make(map[backend.FileType]bool),
 		strictOrder:    false,
 	}
 }
 
-func newOrderedListOnceBackend(be restic.Backend) *listOnceBackend {
+func newOrderedListOnceBackend(be backend.Backend) *listOnceBackend {
 	return &listOnceBackend{
 		Backend:        be,
-		listedFileType: make(map[restic.FileType]bool),
+		listedFileType: make(map[backend.FileType]bool),
 		strictOrder:    true,
 	}
 }
 
-func (be *listOnceBackend) List(ctx context.Context, t restic.FileType, fn func(restic.FileInfo) error) error {
-	if t != restic.LockFile && be.listedFileType[t] {
+func (be *listOnceBackend) List(ctx context.Context, t backend.FileType, fn func(backend.FileInfo) error) error {
+	if t != backend.LockFile && be.listedFileType[t] {
 		return errors.Errorf("tried listing type %v the second time", t)
 	}
-	if be.strictOrder && t == restic.SnapshotFile && be.listedFileType[restic.IndexFile] {
+	if be.strictOrder && t == backend.SnapshotFile && be.listedFileType[backend.IndexFile] {
 		return errors.Errorf("tried listing type snapshots after index")
 	}
 	be.listedFileType[t] = true
@@ -1825,7 +1826,7 @@ func TestListOnce(t *testing.T) {
 	env, cleanup := withTestEnvironment(t)
 	defer cleanup()
 
-	env.gopts.backendTestHook = func(r restic.Backend) (restic.Backend, error) {
+	env.gopts.backendTestHook = func(r backend.Backend) (backend.Backend, error) {
 		return newListOnceBackend(r), nil
 	}
 
@@ -2155,10 +2156,10 @@ func (r *writeToOnly) WriteTo(w io.Writer) (int64, error) {
 }
 
 type onlyLoadWithWriteToBackend struct {
-	restic.Backend
+	backend.Backend
 }
 
-func (be *onlyLoadWithWriteToBackend) Load(ctx context.Context, h restic.Handle,
+func (be *onlyLoadWithWriteToBackend) Load(ctx context.Context, h backend.Handle,
 	length int, offset int64, fn func(rd io.Reader) error) error {
 
 	return be.Backend.Load(ctx, h, length, offset, func(rd io.Reader) error {
@@ -2171,7 +2172,7 @@ func TestBackendLoadWriteTo(t *testing.T) {
 	defer cleanup()
 
 	// setup backend which only works if it's WriteTo method is correctly propagated upwards
-	env.gopts.backendInnerTestHook = func(r restic.Backend) (restic.Backend, error) {
+	env.gopts.backendInnerTestHook = func(r backend.Backend) (backend.Backend, error) {
 		return &onlyLoadWithWriteToBackend{Backend: r}, nil
 	}
 
@@ -2193,7 +2194,7 @@ func TestFindListOnce(t *testing.T) {
 	env, cleanup := withTestEnvironment(t)
 	defer cleanup()
 
-	env.gopts.backendTestHook = func(r restic.Backend) (restic.Backend, error) {
+	env.gopts.backendTestHook = func(r backend.Backend) (backend.Backend, error) {
 		return newListOnceBackend(r), nil
 	}
 

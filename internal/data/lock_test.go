@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/backend/mem"
 	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/repository"
@@ -54,11 +55,11 @@ func TestMultipleLock(t *testing.T) {
 }
 
 type failLockLoadingBackend struct {
-	restic.Backend
+	backend.Backend
 }
 
-func (be *failLockLoadingBackend) Load(ctx context.Context, h restic.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
-	if h.Type == restic.LockFile {
+func (be *failLockLoadingBackend) Load(ctx context.Context, h backend.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
+	if h.Type == backend.LockFile {
 		return fmt.Errorf("error loading lock")
 	}
 	return be.Backend.Load(ctx, h, length, offset, fn)
@@ -128,11 +129,11 @@ func createFakeLock(repo restic.Repository, t time.Time, pid int) (restic.ID, er
 	}
 
 	newLock := &data.Lock{Time: t, PID: pid, Hostname: hostname}
-	return restic.SaveJSONUnpacked(context.TODO(), repo, restic.LockFile, &newLock)
+	return restic.SaveJSONUnpacked(context.TODO(), repo, backend.LockFile, &newLock)
 }
 
 func removeLock(repo restic.Repository, id restic.ID) error {
-	h := restic.Handle{Type: restic.LockFile, Name: id.String()}
+	h := backend.Handle{Type: backend.LockFile, Name: id.String()}
 	return repo.Backend().Remove(context.TODO(), h)
 }
 
@@ -193,7 +194,7 @@ func TestLockStale(t *testing.T) {
 }
 
 func lockExists(repo restic.Repository, t testing.TB, id restic.ID) bool {
-	h := restic.Handle{Type: restic.LockFile, Name: id.String()}
+	h := backend.Handle{Type: backend.LockFile, Name: id.String()}
 	exists, err := repo.Backend().Test(context.TODO(), h)
 	rtest.OK(t, err)
 
@@ -265,7 +266,7 @@ func TestLockRefresh(t *testing.T) {
 	time0 := lock.Time
 
 	var lockID *restic.ID
-	err = repo.List(context.TODO(), restic.LockFile, func(id restic.ID, size int64) error {
+	err = repo.List(context.TODO(), backend.LockFile, func(id restic.ID, size int64) error {
 		if lockID != nil {
 			t.Error("more than one lock found")
 		}
@@ -280,7 +281,7 @@ func TestLockRefresh(t *testing.T) {
 	rtest.OK(t, lock.Refresh(context.TODO()))
 
 	var lockID2 *restic.ID
-	err = repo.List(context.TODO(), restic.LockFile, func(id restic.ID, size int64) error {
+	err = repo.List(context.TODO(), backend.LockFile, func(id restic.ID, size int64) error {
 		if lockID2 != nil {
 			t.Error("more than one lock found")
 		}

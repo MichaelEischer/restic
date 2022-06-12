@@ -6,6 +6,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/backend/local"
 	"github.com/restic/restic/internal/backend/mem"
 	"github.com/restic/restic/internal/crypto"
@@ -33,7 +34,7 @@ func TestUseLowSecurityKDFParameters(t logger) {
 }
 
 // TestBackend returns a fully configured in-memory backend.
-func TestBackend(t testing.TB) (be restic.Backend, cleanup func()) {
+func TestBackend(t testing.TB) (be backend.Backend, cleanup func()) {
 	return mem.New(), func() {}
 }
 
@@ -42,7 +43,7 @@ const TestChunkerPol = chunker.Pol(0x3DA3358B4DC173)
 // TestRepositoryWithBackend returns a repository initialized with a test
 // password. If be is nil, an in-memory backend is used. A constant polynomial
 // is used for the chunker and low-security test parameters.
-func TestRepositoryWithBackend(t testing.TB, be restic.Backend, version uint) (r restic.Repository, cleanup func()) {
+func TestRepositoryWithBackend(t testing.TB, be backend.Backend, version uint) (r restic.Repository, cleanup func()) {
 	t.Helper()
 	TestUseLowSecurityKDFParameters(t)
 	restic.TestDisableCheckPolynomial(t)

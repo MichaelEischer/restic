@@ -14,17 +14,17 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/backend/layout"
 	"github.com/restic/restic/internal/backend/sema"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
-	"github.com/restic/restic/internal/restic"
 
 	"github.com/cenkalti/backoff/v4"
 )
 
-// make sure the rest backend implements restic.Backend
-var _ restic.Backend = &Backend{}
+// make sure the rest backend implements backend.Backend
+var _ backend.Backend = &Backend{}
 
 // Backend uses the REST protocol to access data stored on a server.
 type Backend struct {
@@ -72,7 +72,7 @@ func Create(ctx context.Context, cfg Config, rt http.RoundTripper) (*Backend, er
 		return nil, err
 	}
 
-	_, err = be.Stat(ctx, restic.Handle{Type: restic.ConfigFile})
+	_, err = be.Stat(ctx, backend.Handle{Type: backend.ConfigFile})
 	if err == nil {
 		return nil, errors.Fatal("config file already exists")
 	}
@@ -125,7 +125,7 @@ func (b *Backend) HasAtomicReplace() bool {
 }
 
 // Save stores data in the backend at the handle.
-func (b *Backend) Save(ctx context.Context, h restic.Handle, rd restic.RewindReader) error {
+func (b *Backend) Save(ctx context.Context, h backend.Handle, rd backend.RewindReader) error {
 	if err := h.Valid(); err != nil {
 		return backoff.Permanent(err)
 	}
@@ -170,7 +170,7 @@ func (b *Backend) Save(ctx context.Context, h restic.Handle, rd restic.RewindRea
 // notExistError is returned whenever the requested file does not exist on the
 // server.
 type notExistError struct {
-	restic.Handle
+	backend.Handle
 }
 
 func (e *notExistError) Error() string {
@@ -185,7 +185,7 @@ func (b *Backend) IsNotExist(err error) bool {
 
 // Load runs fn with a reader that yields the contents of the file at h at the
 // given offset.
-func (b *Backend) Load(ctx context.Context, h restic.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
+func (b *Backend) Load(ctx context.Context, h backend.Handle, length int, offset int64, fn func(rd io.Reader) error) error {
 	r, err := b.openReader(ctx, h, length, offset)
 	if err != nil {
 		return err
@@ -252,7 +252,7 @@ func checkContentLength(resp *http.Response) error {
 	return nil
 }
 
-func (b *Backend) openReader(ctx context.Context, h restic.Handle, length int, offset int64) (io.ReadCloser, error) {
+func (b *Backend) openReader(ctx context.Context, h backend.Handle, length int, offset int64) (io.ReadCloser, error) {
 	debug.Log("Load %v, length %v, offset %v", h, length, offset)
 	if err := h.Valid(); err != nil {
 		return nil, backoff.Permanent(err)
@@ -313,14 +313,14 @@ func (b *Backend) openReader(ctx context.Context, h restic.Handle, length int, o
 }
 
 // Stat returns information about a blob.
-func (b *Backend) Stat(ctx context.Context, h restic.Handle) (restic.FileInfo, error) {
+func (b *Backend) Stat(ctx context.Context, h backend.Handle) (backend.FileInfo, error) {
 	if err := h.Valid(); err != nil {
-		return restic.FileInfo{}, backoff.Permanent(err)
+		return backend.FileInfo{}, backoff.Permanent(err)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, b.Filename(h), nil)
 	if err != nil {
-		return restic.FileInfo{}, errors.WithStack(err)
+		return backend.FileInfo{}, errors.WithStack(err)
 	}
 	req.Header.Set("Accept", ContentTypeV2)
 
@@ -328,28 +328,28 @@ func (b *Backend) Stat(ctx context.Context, h restic.Handle) (restic.FileInfo, e
 	resp, err := b.client.Do(req)
 	b.sem.ReleaseToken()
 	if err != nil {
-		return restic.FileInfo{}, errors.WithStack(err)
+		return backend.FileInfo{}, errors.WithStack(err)
 	}
 
 	_, _ = io.Copy(ioutil.Discard, resp.Body)
 	if err = resp.Body.Close(); err != nil {
-		return restic.FileInfo{}, errors.Wrap(err, "Close")
+		return backend.FileInfo{}, errors.Wrap(err, "Close")
 	}
 
 	if resp.StatusCode == http.StatusNotFound {
 		_ = resp.Body.Close()
-		return restic.FileInfo{}, &notExistError{h}
+		return backend.FileInfo{}, &notExistError{h}
 	}
 
 	if resp.StatusCode != 200 {
-		return restic.FileInfo{}, errors.Errorf("unexpected HTTP response (%v): %v", resp.StatusCode, resp.Status)
+		return backend.FileInfo{}, errors.Errorf("unexpected HTTP response (%v): %v", resp.StatusCode, resp.Status)
 	}
 
 	if resp.ContentLength < 0 {
-		return restic.FileInfo{}, errors.New("negative content length")
+		return backend.FileInfo{}, errors.New("negative content length")
 	}
 
-	bi := restic.FileInfo{
+	bi := backend.FileInfo{
 		Size: resp.ContentLength,
 		Name: h.Name,
 	}
@@ -358,7 +358,7 @@ func (b *Backend) Stat(ctx context.Context, h restic.Handle) (restic.FileInfo, e
 }
 
 // Test returns true if a blob of the given type and name exists in the backend.
-func (b *Backend) Test(ctx context.Context, h restic.Handle) (bool, error) {
+func (b *Backend) Test(ctx context.Context, h backend.Handle) (bool, error) {
 	_, err := b.Stat(ctx, h)
 	if err != nil {
 		return false, nil
@@ -368,7 +368,7 @@ func (b *Backend) Test(ctx context.Context, h restic.Handle) (bool, error) {
 }
 
 // Remove removes the blob with the given name and type.
-func (b *Backend) Remove(ctx context.Context, h restic.Handle) error {
+func (b *Backend) Remove(ctx context.Context, h backend.Handle) error {
 	if err := h.Valid(); err != nil {
 		return backoff.Permanent(err)
 	}
@@ -406,8 +406,8 @@ func (b *Backend) Remove(ctx context.Context, h restic.Handle) error {
 
 // List runs fn for each file in the backend which has the type t. When an
 // error occurs (or fn returns an error), List stops and returns it.
-func (b *Backend) List(ctx context.Context, t restic.FileType, fn func(restic.FileInfo) error) error {
-	url := b.Dirname(restic.Handle{Type: t})
+func (b *Backend) List(ctx context.Context, t backend.FileType, fn func(backend.FileInfo) error) error {
+	url := b.Dirname(backend.Handle{Type: t})
 	if !strings.HasSuffix(url, "/") {
 		url += "/"
 	}
@@ -440,7 +440,7 @@ func (b *Backend) List(ctx context.Context, t restic.FileType, fn func(restic.Fi
 // listv1 uses the REST protocol v1, where a list HTTP request (e.g. `GET
 // /data/`) only returns the names of the files, so we need to issue an HTTP
 // HEAD request for each file.
-func (b *Backend) listv1(ctx context.Context, t restic.FileType, resp *http.Response, fn func(restic.FileInfo) error) error {
+func (b *Backend) listv1(ctx context.Context, t backend.FileType, resp *http.Response, fn func(backend.FileInfo) error) error {
 	debug.Log("parsing API v1 response")
 	dec := json.NewDecoder(resp.Body)
 	var list []string
@@ -449,7 +449,7 @@ func (b *Backend) listv1(ctx context.Context, t restic.FileType, resp *http.Resp
 	}
 
 	for _, m := range list {
-		fi, err := b.Stat(ctx, restic.Handle{Name: m, Type: t})
+		fi, err := b.Stat(ctx, backend.Handle{Name: m, Type: t})
 		if err != nil {
 			return err
 		}
@@ -474,7 +474,7 @@ func (b *Backend) listv1(ctx context.Context, t restic.FileType, resp *http.Resp
 
 // listv2 uses the REST protocol v2, where a list HTTP request (e.g. `GET
 // /data/`) returns the names and sizes of all files.
-func (b *Backend) listv2(ctx context.Context, t restic.FileType, resp *http.Response, fn func(restic.FileInfo) error) error {
+func (b *Backend) listv2(ctx context.Context, t backend.FileType, resp *http.Response, fn func(backend.FileInfo) error) error {
 	debug.Log("parsing API v2 response")
 	dec := json.NewDecoder(resp.Body)
 
@@ -491,7 +491,7 @@ func (b *Backend) listv2(ctx context.Context, t restic.FileType, resp *http.Resp
 			return ctx.Err()
 		}
 
-		fi := restic.FileInfo{
+		fi := backend.FileInfo{
 			Name: item.Name,
 			Size: item.Size,
 		}
@@ -517,20 +517,20 @@ func (b *Backend) Close() error {
 }
 
 // Remove keys for a specified backend type.
-func (b *Backend) removeKeys(ctx context.Context, t restic.FileType) error {
-	return b.List(ctx, t, func(fi restic.FileInfo) error {
-		return b.Remove(ctx, restic.Handle{Type: t, Name: fi.Name})
+func (b *Backend) removeKeys(ctx context.Context, t backend.FileType) error {
+	return b.List(ctx, t, func(fi backend.FileInfo) error {
+		return b.Remove(ctx, backend.Handle{Type: t, Name: fi.Name})
 	})
 }
 
 // Delete removes all data in the backend.
 func (b *Backend) Delete(ctx context.Context) error {
-	alltypes := []restic.FileType{
-		restic.PackFile,
-		restic.KeyFile,
-		restic.LockFile,
-		restic.SnapshotFile,
-		restic.IndexFile}
+	alltypes := []backend.FileType{
+		backend.PackFile,
+		backend.KeyFile,
+		backend.LockFile,
+		backend.SnapshotFile,
+		backend.IndexFile}
 
 	for _, t := range alltypes {
 		err := b.removeKeys(ctx, t)
@@ -539,7 +539,7 @@ func (b *Backend) Delete(ctx context.Context) error {
 		}
 	}
 
-	err := b.Remove(ctx, restic.Handle{Type: restic.ConfigFile})
+	err := b.Remove(ctx, backend.Handle{Type: backend.ConfigFile})
 	if err != nil && b.IsNotExist(err) {
 		return nil
 	}

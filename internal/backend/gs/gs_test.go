@@ -11,7 +11,6 @@ import (
 	"github.com/restic/restic/internal/backend/gs"
 	"github.com/restic/restic/internal/backend/test"
 	"github.com/restic/restic/internal/errors"
-	"github.com/restic/restic/internal/restic"
 	rtest "github.com/restic/restic/internal/test"
 )
 
@@ -39,7 +38,7 @@ func newGSTestSuite(t testing.TB) *test.Suite {
 		},
 
 		// CreateFn is a function that creates a temporary repository for the tests.
-		Create: func(config interface{}) (restic.Backend, error) {
+		Create: func(config interface{}) (backend.Backend, error) {
 			cfg := config.(gs.Config)
 
 			be, err := gs.Create(cfg, tr)
@@ -47,7 +46,7 @@ func newGSTestSuite(t testing.TB) *test.Suite {
 				return nil, err
 			}
 
-			exists, err := be.Test(context.TODO(), restic.Handle{Type: restic.ConfigFile})
+			exists, err := be.Test(context.TODO(), backend.Handle{Type: backend.ConfigFile})
 			if err != nil {
 				return nil, err
 			}
@@ -60,7 +59,7 @@ func newGSTestSuite(t testing.TB) *test.Suite {
 		},
 
 		// OpenFn is a function that opens a previously created temporary repository.
-		Open: func(config interface{}) (restic.Backend, error) {
+		Open: func(config interface{}) (backend.Backend, error) {
 			cfg := config.(gs.Config)
 			return gs.Open(cfg, tr)
 		},

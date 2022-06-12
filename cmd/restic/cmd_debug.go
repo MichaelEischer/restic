@@ -108,7 +108,7 @@ type Blob struct {
 func printPacks(ctx context.Context, repo *repository.Repository, wr io.Writer) error {
 
 	var m sync.Mutex
-	return restic.ParallelList(ctx, repo.Backend(), restic.PackFile, repo.Connections(), func(ctx context.Context, id restic.ID, size int64) error {
+	return restic.ParallelList(ctx, repo, backend.PackFile, repo.Connections(), func(ctx context.Context, id restic.ID, size int64) error {
 		blobs, _, err := repo.ListPack(ctx, id, size)
 		if err != nil {
 			Warnf("error for pack %v: %v\n", id.Str(), err)
@@ -322,9 +322,9 @@ func loadBlobs(ctx context.Context, repo restic.Repository, packID restic.ID, li
 		panic(err)
 	}
 	be := repo.Backend()
-	h := restic.Handle{
+	h := backend.Handle{
 		Name: packID.String(),
-		Type: restic.PackFile,
+		Type: backend.PackFile,
 	}
 	for _, blob := range list {
 		Printf("      loading blob %v at %v (length %v)\n", blob.ID, blob.Offset, blob.Length)
@@ -441,7 +441,7 @@ func runDebugExamine(ctx context.Context, gopts GlobalOptions, args []string) er
 	for _, name := range args {
 		id, err := restic.ParseID(name)
 		if err != nil {
-			id, err = repository.Find(ctx, repo, restic.PackFile, name)
+			id, err = repository.Find(ctx, repo, backend.PackFile, name)
 			if err != nil {
 				Warnf("error: %v\n", err)
 				continue
@@ -483,8 +483,8 @@ func runDebugExamine(ctx context.Context, gopts GlobalOptions, args []string) er
 func examinePack(ctx context.Context, repo restic.Repository, id restic.ID) error {
 	Printf("examine %v\n", id)
 
-	h := restic.Handle{
-		Type: restic.PackFile,
+	h := backend.Handle{
+		Type: backend.PackFile,
 		Name: id.String(),
 	}
 	fi, err := repo.Backend().Stat(ctx, h)
