@@ -2210,7 +2210,7 @@ func TestFindListOnce(t *testing.T) {
 
 	snapshotIDs := restic.NewIDSet()
 	// specify the two oldest snapshots explicitly and use "latest" to reference the newest one
-	for sn := range FindFilteredSnapshots(context.TODO(), repo, repo, nil, nil, nil, []string{
+	for sn := range FindFilteredSnapshots(context.TODO(), repo, nil, nil, nil, []string{
 		secondSnapshot[0].String(),
 		secondSnapshot[1].String()[:8],
 		"latest",

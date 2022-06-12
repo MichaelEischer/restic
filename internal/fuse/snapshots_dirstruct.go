@@ -293,7 +293,7 @@ func (d *SnapshotsDirStructure) updateSnapshots(ctx context.Context) error {
 	}
 
 	var snapshots restic.Snapshots
-	err := restic.FindFilteredSnapshots(ctx, d.root.repo, d.root.repo, d.root.cfg.Hosts, d.root.cfg.Tags, d.root.cfg.Paths, nil, func(id string, sn *restic.Snapshot, err error) error {
+	err := restic.FindFilteredSnapshots(ctx, d.root.repo, d.root.cfg.Hosts, d.root.cfg.Tags, d.root.cfg.Paths, nil, func(id string, sn *restic.Snapshot, err error) error {
 		if sn != nil {
 			snapshots = append(snapshots, sn)
 		}

@@ -161,12 +161,13 @@ func runLs(ctx context.Context, opts LsOptions, gopts GlobalOptions, args []stri
 		return false
 	}
 
+	var repo restic.Repository
 	repo, err := OpenRepository(ctx, gopts)
 	if err != nil {
 		return err
 	}
 
-	snapshotLister, err := repository.MemorizeList(ctx, repo, restic.SnapshotFile)
+	repo, err = repository.MemorizeList(ctx, repo, restic.SnapshotFile)
 	if err != nil {
 		return err
 	}
@@ -210,7 +211,7 @@ func runLs(ctx context.Context, opts LsOptions, gopts GlobalOptions, args []stri
 		}
 	}
 
-	sn, err := restic.FindFilteredSnapshot(ctx, snapshotLister, repo, opts.Hosts, opts.Tags, opts.Paths, nil, args[0])
+	sn, err := restic.FindFilteredSnapshot(ctx, repo, opts.Hosts, opts.Tags, opts.Paths, nil, args[0])
 	if err != nil {
 		return err
 	}

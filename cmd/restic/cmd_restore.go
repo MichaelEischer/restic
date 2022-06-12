@@ -131,7 +131,7 @@ func runRestore(ctx context.Context, opts RestoreOptions, gopts GlobalOptions, a
 		}
 	}
 
-	sn, err := restic.FindFilteredSnapshot(ctx, repo, repo, opts.Hosts, opts.Tags, opts.Paths, nil, snapshotIDString)
+	sn, err := restic.FindFilteredSnapshot(ctx, repo, opts.Hosts, opts.Tags, opts.Paths, nil, snapshotIDString)
 	if err != nil {
 		Exitf(1, "failed to find snapshot: %v", err)
 	}

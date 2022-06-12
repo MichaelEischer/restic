@@ -75,7 +75,8 @@ func runStats(ctx context.Context, gopts GlobalOptions, args []string) error {
 		return err
 	}
 
-	repo, err := OpenRepository(ctx, gopts)
+	var repo restic.Repository
+	repo, err = OpenRepository(ctx, gopts)
 	if err != nil {
 		return err
 	}
@@ -89,7 +90,7 @@ func runStats(ctx context.Context, gopts GlobalOptions, args []string) error {
 		}
 	}
 
-	snapshotLister, err := repository.MemorizeList(ctx, repo, restic.SnapshotFile)
+	repo, err = repository.MemorizeList(ctx, repo, restic.SnapshotFile)
 	if err != nil {
 		return err
 	}
@@ -110,7 +111,7 @@ func runStats(ctx context.Context, gopts GlobalOptions, args []string) error {
 		SnapshotsCount: 0,
 	}
 
-	for sn := range FindFilteredSnapshots(ctx, snapshotLister, repo, statsOptions.Hosts, statsOptions.Tags, statsOptions.Paths, args) {
+	for sn := range FindFilteredSnapshots(ctx, repo, statsOptions.Hosts, statsOptions.Tags, statsOptions.Paths, args) {
 		err = statsWalkSnapshot(ctx, sn, repo, stats)
 		if err != nil {
 			return fmt.Errorf("error walking snapshot: %v", err)

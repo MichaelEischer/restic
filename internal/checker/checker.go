@@ -39,7 +39,6 @@ type Checker struct {
 	trackUnused bool
 
 	masterIndex *index.MasterIndex
-	snapshots   restic.Lister
 
 	repo restic.Repository
 }
@@ -96,7 +95,7 @@ func (err *ErrOldIndexFormat) Error() string {
 
 func (c *Checker) LoadSnapshots(ctx context.Context) error {
 	var err error
-	c.snapshots, err = repository.MemorizeList(ctx, c.repo, restic.SnapshotFile)
+	c.repo, err = repository.MemorizeList(ctx, c.repo, restic.SnapshotFile)
 	return err
 }
 
@@ -332,8 +331,8 @@ func (c *Checker) checkTreeWorker(ctx context.Context, trees <-chan restic.TreeI
 	}
 }
 
-func loadSnapshotTreeIDs(ctx context.Context, lister restic.Lister, repo restic.Repository) (ids restic.IDs, errs []error) {
-	err := restic.ForAllSnapshots(ctx, lister, repo, nil, func(id restic.ID, sn *restic.Snapshot, err error) error {
+func loadSnapshotTreeIDs(ctx context.Context, repo restic.ListLoader) (ids restic.IDs, errs []error) {
+	err := restic.ForAllSnapshots(ctx, repo, nil, func(id restic.ID, sn *restic.Snapshot, err error) error {
 		if err != nil {
 			errs = append(errs, err)
 			return nil
@@ -354,7 +353,7 @@ func loadSnapshotTreeIDs(ctx context.Context, lister restic.Lister, repo restic.
 // subtrees are available in the index. errChan is closed after all trees have
 // been traversed.
 func (c *Checker) Structure(ctx context.Context, p *progress.Counter, errChan chan<- error) {
-	trees, errs := loadSnapshotTreeIDs(ctx, c.snapshots, c.repo)
+	trees, errs := loadSnapshotTreeIDs(ctx, c.repo)
 	p.SetMax(uint64(len(trees)))
 	debug.Log("need to check %d trees from snapshots, %d errs returned", len(trees), len(errs))
 

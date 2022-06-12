@@ -568,7 +568,8 @@ func runFind(ctx context.Context, opts FindOptions, gopts GlobalOptions, args []
 		return errors.Fatal("cannot have several ID types")
 	}
 
-	repo, err := OpenRepository(ctx, gopts)
+	var repo restic.Repository
+	repo, err = OpenRepository(ctx, gopts)
 	if err != nil {
 		return err
 	}
@@ -582,7 +583,7 @@ func runFind(ctx context.Context, opts FindOptions, gopts GlobalOptions, args []
 		}
 	}
 
-	snapshotLister, err := repository.MemorizeList(ctx, repo, restic.SnapshotFile)
+	repo, err = repository.MemorizeList(ctx, repo, restic.SnapshotFile)
 	if err != nil {
 		return err
 	}
@@ -618,7 +619,7 @@ func runFind(ctx context.Context, opts FindOptions, gopts GlobalOptions, args []
 		}
 	}
 
-	for sn := range FindFilteredSnapshots(ctx, snapshotLister, repo, opts.Hosts, opts.Tags, opts.Paths, opts.Snapshots) {
+	for sn := range FindFilteredSnapshots(ctx, repo, opts.Hosts, opts.Tags, opts.Paths, opts.Snapshots) {
 		if f.blobIDs != nil || f.treeIDs != nil {
 			if err = f.findIDs(ctx, sn); err != nil && err.Error() != "OK" {
 				return err

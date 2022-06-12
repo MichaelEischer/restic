@@ -61,12 +61,13 @@ func runCopy(ctx context.Context, opts CopyOptions, gopts GlobalOptions, args []
 		gopts, secondaryGopts = secondaryGopts, gopts
 	}
 
-	srcRepo, err := OpenRepository(ctx, gopts)
+	var srcRepo, dstRepo restic.Repository
+	srcRepo, err = OpenRepository(ctx, gopts)
 	if err != nil {
 		return err
 	}
 
-	dstRepo, err := OpenRepository(ctx, secondaryGopts)
+	dstRepo, err = OpenRepository(ctx, secondaryGopts)
 	if err != nil {
 		return err
 	}
@@ -86,12 +87,12 @@ func runCopy(ctx context.Context, opts CopyOptions, gopts GlobalOptions, args []
 		return err
 	}
 
-	srcSnapshotLister, err := repository.MemorizeList(ctx, srcRepo, restic.SnapshotFile)
+	srcRepo, err = repository.MemorizeList(ctx, srcRepo, restic.SnapshotFile)
 	if err != nil {
 		return err
 	}
 
-	dstSnapshotLister, err := repository.MemorizeList(ctx, dstRepo, restic.SnapshotFile)
+	dstRepo, err = repository.MemorizeList(ctx, dstRepo, restic.SnapshotFile)
 	if err != nil {
 		return err
 	}
@@ -107,7 +108,7 @@ func runCopy(ctx context.Context, opts CopyOptions, gopts GlobalOptions, args []
 	}
 
 	dstSnapshotByOriginal := make(map[restic.ID][]*restic.Snapshot)
-	for sn := range FindFilteredSnapshots(ctx, dstSnapshotLister, dstRepo, opts.Hosts, opts.Tags, opts.Paths, nil) {
+	for sn := range FindFilteredSnapshots(ctx, dstRepo, opts.Hosts, opts.Tags, opts.Paths, nil) {
 		if sn.Original != nil && !sn.Original.IsNull() {
 			dstSnapshotByOriginal[*sn.Original] = append(dstSnapshotByOriginal[*sn.Original], sn)
 		}
@@ -118,7 +119,7 @@ func runCopy(ctx context.Context, opts CopyOptions, gopts GlobalOptions, args []
 	// remember already processed trees across all snapshots
 	visitedTrees := restic.NewIDSet()
 
-	for sn := range FindFilteredSnapshots(ctx, srcSnapshotLister, srcRepo, opts.Hosts, opts.Tags, opts.Paths, args) {
+	for sn := range FindFilteredSnapshots(ctx, srcRepo, opts.Hosts, opts.Tags, opts.Paths, args) {
 		Verbosef("\nsnapshot %s of %v at %s)\n", sn.ID().Str(), sn.Paths, sn.Time)
 
 		// check whether the destination has a snapshot with the same persistent ID which has similar snapshot fields

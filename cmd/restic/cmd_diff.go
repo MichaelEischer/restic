@@ -53,8 +53,8 @@ func init() {
 	f.BoolVar(&diffOptions.ShowMetadata, "metadata", false, "print changes in metadata")
 }
 
-func loadSnapshot(ctx context.Context, be restic.Lister, repo restic.Repository, desc string) (*restic.Snapshot, error) {
-	sn, err := restic.FindSnapshot(ctx, be, repo, desc)
+func loadSnapshot(ctx context.Context, repo restic.Repository, desc string) (*restic.Snapshot, error) {
+	sn, err := restic.FindSnapshot(ctx, repo, desc)
 	if err != nil {
 		return nil, errors.Fatal(err.Error())
 	}
@@ -326,6 +326,7 @@ func runDiff(ctx context.Context, opts DiffOptions, gopts GlobalOptions, args []
 		return errors.Fatalf("specify two snapshot IDs")
 	}
 
+	var repo restic.Repository
 	repo, err := OpenRepository(ctx, gopts)
 	if err != nil {
 		return err
@@ -341,16 +342,16 @@ func runDiff(ctx context.Context, opts DiffOptions, gopts GlobalOptions, args []
 	}
 
 	// cache snapshots listing
-	be, err := repository.MemorizeList(ctx, repo, restic.SnapshotFile)
+	repo, err = repository.MemorizeList(ctx, repo, restic.SnapshotFile)
 	if err != nil {
 		return err
 	}
-	sn1, err := loadSnapshot(ctx, be, repo, args[0])
+	sn1, err := loadSnapshot(ctx, repo, args[0])
 	if err != nil {
 		return err
 	}
 
-	sn2, err := loadSnapshot(ctx, be, repo, args[1])
+	sn2, err := loadSnapshot(ctx, repo, args[1])
 	if err != nil {
 		return err
 	}

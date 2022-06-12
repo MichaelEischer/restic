@@ -41,7 +41,8 @@ func runRecover(ctx context.Context, gopts GlobalOptions) error {
 		return err
 	}
 
-	repo, err := OpenRepository(ctx, gopts)
+	var repo restic.Repository
+	repo, err = OpenRepository(ctx, gopts)
 	if err != nil {
 		return err
 	}
@@ -52,7 +53,7 @@ func runRecover(ctx context.Context, gopts GlobalOptions) error {
 		return err
 	}
 
-	snapshotLister, err := repository.MemorizeList(ctx, repo, restic.SnapshotFile)
+	repo, err = repository.MemorizeList(ctx, repo, restic.SnapshotFile)
 	if err != nil {
 		return err
 	}
@@ -91,7 +92,7 @@ func runRecover(ctx context.Context, gopts GlobalOptions) error {
 	bar.Done()
 
 	Verbosef("load snapshots\n")
-	err = restic.ForAllSnapshots(ctx, snapshotLister, repo, nil, func(id restic.ID, sn *restic.Snapshot, err error) error {
+	err = restic.ForAllSnapshots(ctx, repo, nil, func(id restic.ID, sn *restic.Snapshot, err error) error {
 		trees[*sn.Tree] = true
 		return nil
 	})

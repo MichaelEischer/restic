@@ -139,7 +139,7 @@ func runDump(ctx context.Context, opts DumpOptions, gopts GlobalOptions, args []
 		}
 	}
 
-	sn, err := restic.FindFilteredSnapshot(ctx, repo, repo, opts.Paths, opts.Tags, opts.Hosts, nil, snapshotIDString)
+	sn, err := restic.FindFilteredSnapshot(ctx, repo, opts.Paths, opts.Tags, opts.Hosts, nil, snapshotIDString)
 	if err != nil {
 		Exitf(1, "failed to find snapshot: %v", err)
 	}

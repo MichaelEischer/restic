@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/restic/restic/internal/restic"
 )
@@ -12,17 +11,16 @@ type idWithSize struct {
 	size int64
 }
 
-type memorizedLister struct {
+type memorizedRepository struct {
+	restic.Repository
+
 	info []idWithSize
 	tpe  restic.FileType
 }
 
-// statically assert that memorizedLister implements restic.Lister
-var _ restic.Lister = &memorizedLister{}
-
-func (m *memorizedLister) List(ctx context.Context, t restic.FileType, fn func(restic.ID, int64) error) error {
+func (m *memorizedRepository) List(ctx context.Context, t restic.FileType, fn func(restic.ID, int64) error) error {
 	if t != m.tpe {
-		return fmt.Errorf("filetype mismatch, expected %s got %s", m.tpe, t)
+		return m.Repository.List(ctx, t, fn)
 	}
 	for _, fi := range m.info {
 		if ctx.Err() != nil {
@@ -36,8 +34,8 @@ func (m *memorizedLister) List(ctx context.Context, t restic.FileType, fn func(r
 	return ctx.Err()
 }
 
-func MemorizeList(ctx context.Context, repo restic.Lister, t restic.FileType) (restic.Lister, error) {
-	if _, ok := repo.(*memorizedLister); ok {
+func MemorizeList(ctx context.Context, repo restic.Repository, t restic.FileType) (restic.Repository, error) {
+	if _, ok := repo.(*memorizedRepository); ok {
 		return repo, nil
 	}
 
@@ -50,8 +48,9 @@ func MemorizeList(ctx context.Context, repo restic.Lister, t restic.FileType) (r
 		return nil, err
 	}
 
-	return &memorizedLister{
-		info: infos,
-		tpe:  t,
+	return &memorizedRepository{
+		Repository: repo,
+		info:       infos,
+		tpe:        t,
 	}, nil
 }

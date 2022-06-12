@@ -35,17 +35,17 @@ func initSingleSnapshotFilterOptions(flags *pflag.FlagSet, options *snapshotFilt
 }
 
 // FindFilteredSnapshots yields Snapshots, either given explicitly by `snapshotIDs` or filtered from the list of all snapshots.
-func FindFilteredSnapshots(ctx context.Context, be restic.Lister, loader restic.LoaderUnpacked, hosts []string, tags []restic.TagList, paths []string, snapshotIDs []string) <-chan *restic.Snapshot {
+func FindFilteredSnapshots(ctx context.Context, repo restic.Repository, hosts []string, tags []restic.TagList, paths []string, snapshotIDs []string) <-chan *restic.Snapshot {
 	out := make(chan *restic.Snapshot)
 	go func() {
 		defer close(out)
-		be, err := repository.MemorizeList(ctx, be, restic.SnapshotFile)
+		repo, err := repository.MemorizeList(ctx, repo, restic.SnapshotFile)
 		if err != nil {
 			Warnf("could not load snapshots: %v\n", err)
 			return
 		}
 
-		err = restic.FindFilteredSnapshots(ctx, be, loader, hosts, tags, paths, snapshotIDs, func(id string, sn *restic.Snapshot, err error) error {
+		err = restic.FindFilteredSnapshots(ctx, repo, hosts, tags, paths, snapshotIDs, func(id string, sn *restic.Snapshot, err error) error {
 			if err != nil {
 				Warnf("Ignoring %q: %v\n", id, err)
 			} else {
