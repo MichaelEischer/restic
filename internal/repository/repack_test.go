@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/index"
 	"github.com/restic/restic/internal/repository"
 	"github.com/restic/restic/internal/restic"
@@ -90,7 +89,7 @@ func selectBlobs(t *testing.T, repo restic.Repository, p float32) (list1, list2 
 
 	blobs := restic.NewBlobSet()
 
-	err := repo.List(context.TODO(), backend.PackFile, func(id restic.ID, size int64) error {
+	err := repo.List(context.TODO(), restic.PackFile, func(id restic.ID, size int64) error {
 		entries, _, err := repo.ListPack(context.TODO(), id, size)
 		if err != nil {
 			t.Fatalf("error listing pack %v: %v", id, err)
@@ -121,7 +120,7 @@ func selectBlobs(t *testing.T, repo restic.Repository, p float32) (list1, list2 
 
 func listPacks(t *testing.T, repo restic.Repository) restic.IDSet {
 	list := restic.NewIDSet()
-	err := repo.List(context.TODO(), backend.PackFile, func(id restic.ID, size int64) error {
+	err := repo.List(context.TODO(), restic.PackFile, func(id restic.ID, size int64) error {
 		list.Insert(id)
 		return nil
 	})
@@ -158,7 +157,7 @@ func repack(t *testing.T, repo restic.Repository, packs restic.IDSet, blobs rest
 	}
 
 	for id := range repackedBlobs {
-		err = repo.Remove(context.TODO(), backend.PackFile, id)
+		err = repo.Remove(context.TODO(), restic.PackFile, id)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -178,7 +177,7 @@ func rebuildIndex(t *testing.T, repo restic.Repository) {
 	}
 
 	packs := make(map[restic.ID]int64)
-	err = repo.List(context.TODO(), backend.PackFile, func(id restic.ID, size int64) error {
+	err = repo.List(context.TODO(), restic.PackFile, func(id restic.ID, size int64) error {
 		packs[id] = size
 		return nil
 	})
@@ -191,8 +190,8 @@ func rebuildIndex(t *testing.T, repo restic.Repository) {
 		t.Fatal(err)
 	}
 
-	err = repo.List(context.TODO(), backend.IndexFile, func(id restic.ID, size int64) error {
-		return repo.Remove(context.TODO(), backend.IndexFile, id)
+	err = repo.List(context.TODO(), restic.IndexFile, func(id restic.ID, size int64) error {
+		return repo.Remove(context.TODO(), restic.IndexFile, id)
 	})
 	if err != nil {
 		t.Fatal(err)

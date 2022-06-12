@@ -116,7 +116,7 @@ func SearchKey(ctx context.Context, s *Repository, password string, maxKeys int,
 	checked := 0
 
 	if len(keyHint) > 0 {
-		id, err := Find(ctx, s, backend.KeyFile, keyHint)
+		id, err := Find(ctx, s, restic.KeyFile, keyHint)
 
 		if err == nil {
 			key, err := OpenKey(ctx, s, id, password)
@@ -136,7 +136,7 @@ func SearchKey(ctx context.Context, s *Repository, password string, maxKeys int,
 	defer cancel()
 
 	// try at most maxKeys keys in repo
-	err = s.List(listCtx, backend.KeyFile, func(id restic.ID, size int64) error {
+	err = s.List(listCtx, restic.KeyFile, func(id restic.ID, size int64) error {
 		checked++
 		if maxKeys > 0 && checked > maxKeys {
 			return ErrMaxKeysReached

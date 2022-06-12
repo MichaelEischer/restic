@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 
-	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/index"
@@ -52,18 +51,18 @@ func runList(ctx context.Context, cmd *cobra.Command, opts GlobalOptions, args [
 		}
 	}
 
-	var t backend.FileType
+	var t restic.FileType
 	switch args[0] {
 	case "packs":
-		t = backend.PackFile
+		t = restic.PackFile
 	case "index":
-		t = backend.IndexFile
+		t = restic.IndexFile
 	case "snapshots":
-		t = backend.SnapshotFile
+		t = restic.SnapshotFile
 	case "keys":
-		t = backend.KeyFile
+		t = restic.KeyFile
 	case "locks":
-		t = backend.LockFile
+		t = restic.LockFile
 	case "blobs":
 		return index.ForAllIndexes(ctx, repo, func(id restic.ID, idx *index.Index, oldFormat bool, err error) error {
 			if err != nil {

@@ -5,13 +5,12 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/restic"
 )
 
-type mockLister func(ctx context.Context, t backend.FileType, fn func(id restic.ID, size int64) error) error
+type mockLister func(ctx context.Context, t restic.FileType, fn func(id restic.ID, size int64) error) error
 
-func (l mockLister) List(ctx context.Context, t backend.FileType, fn func(id restic.ID, size int64) error) error {
+func (l mockLister) List(ctx context.Context, t restic.FileType, fn func(id restic.ID, size int64) error) error {
 	return l(ctx, t, fn)
 }
 
@@ -29,7 +28,7 @@ var samples = restic.IDs{
 func TestFind(t *testing.T) {
 	list := samples
 
-	m := mockLister(func(ctx context.Context, t backend.FileType, fn func(id restic.ID, size int64) error) error {
+	m := mockLister(func(ctx context.Context, t restic.FileType, fn func(id restic.ID, size int64) error) error {
 		for _, id := range list {
 			err := fn(id, 42)
 			if err != nil {
@@ -39,7 +38,7 @@ func TestFind(t *testing.T) {
 		return nil
 	})
 
-	f, err := Find(context.TODO(), m, backend.SnapshotFile, "20bdc1402a6fc9b633aa")
+	f, err := Find(context.TODO(), m, restic.SnapshotFile, "20bdc1402a6fc9b633aa")
 	if err != nil {
 		t.Error(err)
 	}
@@ -48,7 +47,7 @@ func TestFind(t *testing.T) {
 		t.Errorf("Wrong match returned want %s, got %s", expectedMatch, f)
 	}
 
-	f, err = Find(context.TODO(), m, backend.SnapshotFile, "NotAPrefix")
+	f, err = Find(context.TODO(), m, restic.SnapshotFile, "NotAPrefix")
 	if _, ok := err.(*NoIDByPrefixError); !ok || !strings.Contains(err.Error(), "NotAPrefix") {
 		t.Error("Expected no snapshots to be found.")
 	}
@@ -58,7 +57,7 @@ func TestFind(t *testing.T) {
 
 	// Try to match with a prefix longer than any ID.
 	extraLengthID := samples[0].String() + "f"
-	f, err = Find(context.TODO(), m, backend.SnapshotFile, extraLengthID)
+	f, err = Find(context.TODO(), m, restic.SnapshotFile, extraLengthID)
 	if _, ok := err.(*NoIDByPrefixError); !ok || !strings.Contains(err.Error(), extraLengthID) {
 		t.Errorf("Wrong error %v for no snapshots matched", err)
 	}
@@ -67,7 +66,7 @@ func TestFind(t *testing.T) {
 	}
 
 	// Use a prefix that will match the prefix of multiple Ids in `samples`.
-	f, err = Find(context.TODO(), m, backend.SnapshotFile, "20bdc140")
+	f, err = Find(context.TODO(), m, restic.SnapshotFile, "20bdc140")
 	if _, ok := err.(*MultipleIDMatchesError); !ok {
 		t.Errorf("Wrong error %v for multiple snapshots", err)
 	}

@@ -97,7 +97,7 @@ func (err *ErrOldIndexFormat) Error() string {
 
 func (c *Checker) LoadSnapshots(ctx context.Context) error {
 	var err error
-	c.repo, err = repository.MemorizeList(ctx, c.repo, backend.SnapshotFile)
+	c.repo, err = repository.MemorizeList(ctx, c.repo, restic.SnapshotFile)
 	return err
 }
 
@@ -240,7 +240,7 @@ func (c *Checker) Packs(ctx context.Context, errChan chan<- error) {
 	debug.Log("listing repository packs")
 	repoPacks := make(map[restic.ID]int64)
 
-	err := c.repo.List(ctx, backend.PackFile, func(id restic.ID, size int64) error {
+	err := c.repo.List(ctx, restic.PackFile, func(id restic.ID, size int64) error {
 		repoPacks[id] = size
 		return nil
 	})

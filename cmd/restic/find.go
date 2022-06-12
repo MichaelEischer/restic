@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 
-	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/repository"
 	"github.com/restic/restic/internal/restic"
@@ -41,7 +40,7 @@ func FindFilteredSnapshots(ctx context.Context, repo restic.Repository, hosts []
 	out := make(chan *data.Snapshot)
 	go func() {
 		defer close(out)
-		repo, err := repository.MemorizeList(ctx, repo, backend.SnapshotFile)
+		repo, err := repository.MemorizeList(ctx, repo, restic.SnapshotFile)
 		if err != nil {
 			Warnf("could not load snapshots: %v\n", err)
 			return

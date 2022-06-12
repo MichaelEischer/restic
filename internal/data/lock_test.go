@@ -129,11 +129,11 @@ func createFakeLock(repo restic.Repository, t time.Time, pid int) (restic.ID, er
 	}
 
 	newLock := &data.Lock{Time: t, PID: pid, Hostname: hostname}
-	return restic.SaveJSONUnpacked(context.TODO(), repo, backend.LockFile, &newLock)
+	return restic.SaveJSONUnpacked(context.TODO(), repo, restic.LockFile, &newLock)
 }
 
 func removeLock(repo restic.Repository, id restic.ID) error {
-	return repo.Remove(context.TODO(), backend.LockFile, id)
+	return repo.Remove(context.TODO(), restic.LockFile, id)
 }
 
 var staleLockTests = []struct {
@@ -265,7 +265,7 @@ func TestLockRefresh(t *testing.T) {
 	time0 := lock.Time
 
 	var lockID *restic.ID
-	err = repo.List(context.TODO(), backend.LockFile, func(id restic.ID, size int64) error {
+	err = repo.List(context.TODO(), restic.LockFile, func(id restic.ID, size int64) error {
 		if lockID != nil {
 			t.Error("more than one lock found")
 		}
@@ -280,7 +280,7 @@ func TestLockRefresh(t *testing.T) {
 	rtest.OK(t, lock.Refresh(context.TODO()))
 
 	var lockID2 *restic.ID
-	err = repo.List(context.TODO(), backend.LockFile, func(id restic.ID, size int64) error {
+	err = repo.List(context.TODO(), restic.LockFile, func(id restic.ID, size int64) error {
 		if lockID2 != nil {
 			t.Error("more than one lock found")
 		}

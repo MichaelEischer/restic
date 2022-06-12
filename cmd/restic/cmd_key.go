@@ -8,7 +8,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/repository"
 	"github.com/restic/restic/internal/restic"
@@ -61,7 +60,7 @@ func listKeys(ctx context.Context, s *repository.Repository, gopts GlobalOptions
 	var m sync.Mutex
 	var keys []keyInfo
 
-	err := restic.ParallelList(ctx, s, backend.KeyFile, s.Connections(), func(ctx context.Context, id restic.ID, size int64) error {
+	err := restic.ParallelList(ctx, s, restic.KeyFile, s.Connections(), func(ctx context.Context, id restic.ID, size int64) error {
 		k, err := repository.LoadKey(ctx, s, id)
 		if err != nil {
 			Warnf("LoadKey() failed: %v\n", err)
@@ -151,7 +150,7 @@ func deleteKey(ctx context.Context, repo *repository.Repository, id restic.ID) e
 		return errors.Fatal("refusing to remove key currently used to access repository")
 	}
 
-	err := repo.Remove(ctx, backend.KeyFile, id)
+	err := repo.Remove(ctx, restic.KeyFile, id)
 	if err != nil {
 		return err
 	}
@@ -177,7 +176,7 @@ func changePassword(ctx context.Context, repo *repository.Repository, gopts Glob
 		return err
 	}
 
-	err = repo.Remove(ctx, backend.KeyFile, oldID)
+	err = repo.Remove(ctx, restic.KeyFile, oldID)
 	if err != nil {
 		return err
 	}
@@ -193,7 +192,7 @@ func switchToNewKeyAndRemoveIfBroken(ctx context.Context, repo *repository.Repos
 	err := repo.SearchKey(ctx, pw, 0, key.ID().String())
 	if err != nil {
 		// the key is invalid, try to remove it
-		_ = repo.Remove(ctx, backend.KeyFile, key.ID())
+		_ = repo.Remove(ctx, restic.KeyFile, key.ID())
 		return errors.Fatalf("failed to access repository with new key: %v", err)
 	}
 	return nil
@@ -233,7 +232,7 @@ func runKey(ctx context.Context, gopts GlobalOptions, args []string) error {
 			return err
 		}
 
-		id, err := repository.Find(ctx, repo, backend.KeyFile, args[1])
+		id, err := repository.Find(ctx, repo, restic.KeyFile, args[1])
 		if err != nil {
 			return err
 		}

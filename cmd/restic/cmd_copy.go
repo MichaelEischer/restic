@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/repository"
@@ -89,12 +88,12 @@ func runCopy(ctx context.Context, opts CopyOptions, gopts GlobalOptions, args []
 		return err
 	}
 
-	srcRepo, err = repository.MemorizeList(ctx, srcRepo, backend.SnapshotFile)
+	srcRepo, err = repository.MemorizeList(ctx, srcRepo, restic.SnapshotFile)
 	if err != nil {
 		return err
 	}
 
-	dstRepo, err = repository.MemorizeList(ctx, dstRepo, backend.SnapshotFile)
+	dstRepo, err = repository.MemorizeList(ctx, dstRepo, restic.SnapshotFile)
 	if err != nil {
 		return err
 	}

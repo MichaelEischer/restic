@@ -7,7 +7,6 @@ import (
 	"runtime"
 	"sync"
 
-	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/restic"
 	"github.com/restic/restic/internal/ui/progress"
@@ -369,7 +368,7 @@ func SaveIndex(ctx context.Context, repo restic.SaverUnpacked, index *Index) (re
 		return restic.ID{}, err
 	}
 
-	id, err := repo.SaveUnpacked(ctx, backend.IndexFile, buf.Bytes())
+	id, err := repo.SaveUnpacked(ctx, restic.IndexFile, buf.Bytes())
 	ierr := index.SetID(id)
 	if ierr != nil {
 		// logic bug

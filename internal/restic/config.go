@@ -4,7 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/errors"
 
 	"github.com/restic/restic/internal/debug"
@@ -28,7 +27,7 @@ const StableRepoVersion = 2
 
 // JSONUnpackedLoader loads unpacked JSON.
 type JSONUnpackedLoader interface {
-	LoadJSONUnpacked(context.Context, backend.FileType, ID, interface{}) error
+	LoadJSONUnpacked(context.Context, FileType, ID, interface{}) error
 }
 
 // CreateConfig creates a config file with a randomly selected polynomial and
@@ -82,7 +81,7 @@ func LoadConfig(ctx context.Context, r LoaderUnpacked) (Config, error) {
 		cfg Config
 	)
 
-	err := LoadJSONUnpacked(ctx, r, backend.ConfigFile, ID{}, &cfg)
+	err := LoadJSONUnpacked(ctx, r, ConfigFile, ID{}, &cfg)
 	if err != nil {
 		return Config{}, err
 	}
@@ -101,6 +100,6 @@ func LoadConfig(ctx context.Context, r LoaderUnpacked) (Config, error) {
 }
 
 func SaveConfig(ctx context.Context, r SaverUnpacked, cfg Config) error {
-	_, err := SaveJSONUnpacked(ctx, r, backend.ConfigFile, cfg)
+	_, err := SaveJSONUnpacked(ctx, r, ConfigFile, cfg)
 	return err
 }

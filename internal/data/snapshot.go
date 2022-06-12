@@ -8,7 +8,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/restic"
 )
@@ -61,7 +60,7 @@ func NewSnapshot(paths []string, tags []string, hostname string, time time.Time)
 // LoadSnapshot loads the snapshot with the id and returns it.
 func LoadSnapshot(ctx context.Context, loader restic.LoaderUnpacked, id restic.ID) (*Snapshot, error) {
 	sn := &Snapshot{id: &id}
-	err := restic.LoadJSONUnpacked(ctx, loader, backend.SnapshotFile, id, sn)
+	err := restic.LoadJSONUnpacked(ctx, loader, restic.SnapshotFile, id, sn)
 	if err != nil {
 		return nil, err
 	}
@@ -71,7 +70,7 @@ func LoadSnapshot(ctx context.Context, loader restic.LoaderUnpacked, id restic.I
 
 // SaveSnapshot saves the snapshot sn and returns its ID.
 func SaveSnapshot(ctx context.Context, repo restic.SaverUnpacked, sn *Snapshot) (restic.ID, error) {
-	return restic.SaveJSONUnpacked(ctx, repo, backend.SnapshotFile, sn)
+	return restic.SaveJSONUnpacked(ctx, repo, restic.SnapshotFile, sn)
 }
 
 // ForAllSnapshots reads all snapshots in parallel and calls the
@@ -83,7 +82,7 @@ func ForAllSnapshots(ctx context.Context, repo ListLoader, excludeIDs restic.IDS
 	var m sync.Mutex
 
 	// For most snapshots decoding is nearly for free, thus just assume were only limited by IO
-	return restic.ParallelList(ctx, repo, backend.SnapshotFile, repo.Connections(), func(ctx context.Context, id restic.ID, size int64) error {
+	return restic.ParallelList(ctx, repo, restic.SnapshotFile, repo.Connections(), func(ctx context.Context, id restic.ID, size int64) error {
 		if excludeIDs.Has(id) {
 			return nil
 		}

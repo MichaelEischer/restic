@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/repository"
 	"github.com/restic/restic/internal/restic"
 	rtest "github.com/restic/restic/internal/test"
@@ -18,10 +17,10 @@ type idWithSize struct {
 
 type mockLister struct {
 	restic.Repository
-	listFn func(ctx context.Context, t backend.FileType, fn func(id restic.ID, size int64) error) error
+	listFn func(ctx context.Context, t restic.FileType, fn func(id restic.ID, size int64) error) error
 }
 
-func (l mockLister) List(ctx context.Context, t backend.FileType, fn func(id restic.ID, size int64) error) error {
+func (l mockLister) List(ctx context.Context, t restic.FileType, fn func(id restic.ID, size int64) error) error {
 	return l.listFn(ctx, t, fn)
 }
 
@@ -32,9 +31,9 @@ func TestMemoizeList(t *testing.T) {
 		{Size: 45, ID: restic.NewRandomID()},
 	}
 	called := false
-	be := mockLister{nil, func(ctx context.Context, t backend.FileType, fn func(id restic.ID, size int64) error) error {
+	be := mockLister{nil, func(ctx context.Context, t restic.FileType, fn func(id restic.ID, size int64) error) error {
 		called = true
-		if t != backend.SnapshotFile {
+		if t != restic.SnapshotFile {
 			return nil
 		}
 		for _, fi := range files {
@@ -45,12 +44,12 @@ func TestMemoizeList(t *testing.T) {
 		return nil
 	}}
 
-	mem, err := repository.MemorizeList(context.TODO(), be, backend.SnapshotFile)
+	mem, err := repository.MemorizeList(context.TODO(), be, restic.SnapshotFile)
 	rtest.OK(t, err)
 	rtest.Assert(t, called, "did not query repo")
 
 	called = false
-	err = mem.List(context.TODO(), backend.IndexFile, func(id restic.ID, size int64) error {
+	err = mem.List(context.TODO(), restic.IndexFile, func(id restic.ID, size int64) error {
 		t.Fatal("shouldn't be called")
 		return nil
 	})
@@ -59,7 +58,7 @@ func TestMemoizeList(t *testing.T) {
 
 	var memFiles []idWithSize
 	called = false
-	err = mem.List(context.TODO(), backend.SnapshotFile, func(id restic.ID, size int64) error {
+	err = mem.List(context.TODO(), restic.SnapshotFile, func(id restic.ID, size int64) error {
 		memFiles = append(memFiles, idWithSize{id, size})
 		return nil
 	})
@@ -70,9 +69,9 @@ func TestMemoizeList(t *testing.T) {
 
 func TestMemoizeListError(t *testing.T) {
 	// setup backend to serve as data source for memoized list
-	be := mockLister{nil, func(ctx context.Context, t backend.FileType, fn func(id restic.ID, size int64) error) error {
+	be := mockLister{nil, func(ctx context.Context, t restic.FileType, fn func(id restic.ID, size int64) error) error {
 		return fmt.Errorf("list error")
 	}}
-	_, err := repository.MemorizeList(context.TODO(), be, backend.SnapshotFile)
+	_, err := repository.MemorizeList(context.TODO(), be, restic.SnapshotFile)
 	rtest.Assert(t, err != nil, "missing error on list error")
 }

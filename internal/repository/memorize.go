@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 
-	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/restic"
 )
 
@@ -16,10 +15,10 @@ type memorizedRepository struct {
 	restic.Repository
 
 	info []idWithSize
-	tpe  backend.FileType
+	tpe  restic.FileType
 }
 
-func (m *memorizedRepository) List(ctx context.Context, t backend.FileType, fn func(restic.ID, int64) error) error {
+func (m *memorizedRepository) List(ctx context.Context, t restic.FileType, fn func(restic.ID, int64) error) error {
 	if t != m.tpe {
 		return m.Repository.List(ctx, t, fn)
 	}
@@ -35,7 +34,7 @@ func (m *memorizedRepository) List(ctx context.Context, t backend.FileType, fn f
 	return ctx.Err()
 }
 
-func MemorizeList(ctx context.Context, repo restic.Repository, t backend.FileType) (restic.Repository, error) {
+func MemorizeList(ctx context.Context, repo restic.Repository, t restic.FileType) (restic.Repository, error) {
 	if _, ok := repo.(*memorizedRepository); ok {
 		return repo, nil
 	}

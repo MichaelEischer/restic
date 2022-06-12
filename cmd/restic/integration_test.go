@@ -454,11 +454,11 @@ func removePacksExcept(gopts GlobalOptions, t *testing.T, keep restic.IDSet, rem
 	})
 
 	// remove all packs containing data blobs
-	rtest.OK(t, r.List(context.TODO(), backend.PackFile, func(id restic.ID, size int64) error {
+	rtest.OK(t, r.List(context.TODO(), restic.PackFile, func(id restic.ID, size int64) error {
 		if treePacks.Has(id) != removeTreePacks || keep.Has(id) {
 			return nil
 		}
-		return r.Remove(context.TODO(), backend.PackFile, id)
+		return r.Remove(context.TODO(), restic.PackFile, id)
 	}))
 }
 
@@ -520,7 +520,7 @@ func TestBackupTreeLoadError(t *testing.T) {
 
 	// delete the subdirectory pack first
 	for id := range treePacks {
-		rtest.OK(t, r.Remove(context.TODO(), backend.PackFile, id))
+		rtest.OK(t, r.Remove(context.TODO(), restic.PackFile, id))
 	}
 	testRunRebuildIndex(t, env.gopts)
 	// now the repo is missing the tree blob in the index; check should report this
@@ -1659,7 +1659,7 @@ func listPacks(gopts GlobalOptions, t *testing.T) restic.IDSet {
 
 	packs := restic.NewIDSet()
 
-	rtest.OK(t, r.List(context.TODO(), backend.PackFile, func(id restic.ID, size int64) error {
+	rtest.OK(t, r.List(context.TODO(), restic.PackFile, func(id restic.ID, size int64) error {
 		packs.Insert(id)
 		return nil
 	}))

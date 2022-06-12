@@ -233,7 +233,7 @@ func benchmarkLoadUnpacked(b *testing.B, version uint) {
 
 	dataID := restic.Hash(buf)
 
-	storageID, err := repo.SaveUnpacked(context.TODO(), backend.PackFile, buf)
+	storageID, err := repo.SaveUnpacked(context.TODO(), restic.PackFile, buf)
 	rtest.OK(b, err)
 	// rtest.OK(b, repo.Flush())
 
@@ -241,7 +241,7 @@ func benchmarkLoadUnpacked(b *testing.B, version uint) {
 	b.SetBytes(int64(length))
 
 	for i := 0; i < b.N; i++ {
-		data, err := repo.LoadUnpacked(context.TODO(), backend.PackFile, storageID, nil)
+		data, err := repo.LoadUnpacked(context.TODO(), restic.PackFile, storageID, nil)
 		rtest.OK(b, err)
 
 		// See comment in BenchmarkLoadBlob.
@@ -270,7 +270,7 @@ func TestRepositoryLoadIndex(t *testing.T) {
 
 // loadIndex loads the index id from backend and returns it.
 func loadIndex(ctx context.Context, repo restic.Repository, id restic.ID) (*index.Index, error) {
-	buf, err := repo.LoadUnpacked(ctx, backend.IndexFile, id, nil)
+	buf, err := repo.LoadUnpacked(ctx, restic.IndexFile, id, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -298,7 +298,7 @@ func TestRepositoryLoadUnpackedBroken(t *testing.T) {
 	rtest.OK(t, err)
 
 	// without a retry backend this will just return an error that the file is broken
-	_, err = repo.LoadUnpacked(context.TODO(), backend.IndexFile, id, nil)
+	_, err = repo.LoadUnpacked(context.TODO(), restic.IndexFile, id, nil)
 	if err == nil {
 		t.Fatal("missing expected error")
 	}
@@ -416,7 +416,7 @@ func testRepositoryIncrementalIndex(t *testing.T, version uint) {
 
 	packEntries := make(map[restic.ID]map[restic.ID]struct{})
 
-	err := repo.List(context.TODO(), backend.IndexFile, func(id restic.ID, size int64) error {
+	err := repo.List(context.TODO(), restic.IndexFile, func(id restic.ID, size int64) error {
 		idx, err := loadIndex(context.TODO(), repo, id)
 		rtest.OK(t, err)
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/restic"
 )
 
@@ -27,7 +26,7 @@ func (e *NoIDByPrefixError) Error() string {
 // Find loads the list of all files of type t and searches for names which
 // start with prefix. If none is found, nil and ErrNoIDPrefixFound is returned.
 // If more than one is found, nil and ErrMultipleIDMatches is returned.
-func Find(ctx context.Context, be restic.Lister, t backend.FileType, prefix string) (restic.ID, error) {
+func Find(ctx context.Context, be restic.Lister, t restic.FileType, prefix string) (restic.ID, error) {
 	match := restic.ID{}
 
 	ctx, cancel := context.WithCancel(ctx)

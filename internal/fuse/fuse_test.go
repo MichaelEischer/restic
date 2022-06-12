@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/bloblru"
 	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/repository"
@@ -39,7 +38,7 @@ func testRead(t testing.TB, f fs.Handle, offset, length int, data []byte) {
 }
 
 func firstSnapshotID(t testing.TB, repo restic.Repository) (first restic.ID) {
-	err := repo.List(context.TODO(), backend.SnapshotFile, func(id restic.ID, size int64) error {
+	err := repo.List(context.TODO(), restic.SnapshotFile, func(id restic.ID, size int64) error {
 		if first.IsNull() {
 			first = id
 		}

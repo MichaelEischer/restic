@@ -108,7 +108,7 @@ type Blob struct {
 func printPacks(ctx context.Context, repo *repository.Repository, wr io.Writer) error {
 
 	var m sync.Mutex
-	return restic.ParallelList(ctx, repo, backend.PackFile, repo.Connections(), func(ctx context.Context, id restic.ID, size int64) error {
+	return restic.ParallelList(ctx, repo, restic.PackFile, repo.Connections(), func(ctx context.Context, id restic.ID, size int64) error {
 		blobs, _, err := repo.ListPack(ctx, id, size)
 		if err != nil {
 			Warnf("error for pack %v: %v\n", id.Str(), err)
@@ -423,7 +423,7 @@ func runDebugExamine(ctx context.Context, gopts GlobalOptions, args []string) er
 	for _, name := range args {
 		id, err := restic.ParseID(name)
 		if err != nil {
-			id, err = repository.Find(ctx, repo, backend.PackFile, name)
+			id, err = repository.Find(ctx, repo, restic.PackFile, name)
 			if err != nil {
 				Warnf("error: %v\n", err)
 				continue

@@ -5,7 +5,6 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/index"
 	"github.com/restic/restic/internal/repository"
@@ -22,7 +21,7 @@ func TestRepositoryForAllIndexes(t *testing.T) {
 	repo := repository.TestOpenLocal(t, repodir)
 
 	expectedIndexIDs := restic.NewIDSet()
-	rtest.OK(t, repo.List(context.TODO(), backend.IndexFile, func(id restic.ID, size int64) error {
+	rtest.OK(t, repo.List(context.TODO(), restic.IndexFile, func(id restic.ID, size int64) error {
 		expectedIndexIDs.Insert(id)
 		return nil
 	}))

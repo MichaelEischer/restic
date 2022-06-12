@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"io"
 
-	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/restic"
@@ -219,7 +218,7 @@ func runForget(ctx context.Context, opts ForgetOptions, gopts GlobalOptions, arg
 
 	if len(removeSnIDs) > 0 {
 		if !opts.DryRun {
-			err := DeleteFilesChecked(ctx, gopts, repo, removeSnIDs, backend.SnapshotFile)
+			err := DeleteFilesChecked(ctx, gopts, repo, removeSnIDs, restic.SnapshotFile)
 			if err != nil {
 				return err
 			}
