@@ -3,6 +3,7 @@ package test
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -21,6 +22,11 @@ import (
 
 	"github.com/restic/restic/internal/backend"
 )
+
+func dataName(data []byte) string {
+	id := sha256.Sum256(data)
+	return hex.EncodeToString(id[:])
+}
 
 func seedRand(t testing.TB) {
 	seed := time.Now().UnixNano()
@@ -132,9 +138,9 @@ func (s *Suite) TestLoad(t *testing.T) {
 	length := rand.Intn(1<<24) + 2000
 
 	data := test.Random(23, length)
-	id := restic.Hash(data)
+	id := dataName(data)
 
-	handle := restic.Handle{Type: restic.PackFile, Name: id.String()}
+	handle := restic.Handle{Type: restic.PackFile, Name: id}
 	err = b.Save(context.TODO(), handle, restic.NewByteReader(data, b.Hasher()))
 	if err != nil {
 		t.Fatalf("Save() error: %+v", err)
@@ -248,12 +254,12 @@ func (s *Suite) TestList(t *testing.T) {
 		t.Fatalf("backend not empty at start of test - contains: %v", found)
 	}
 
-	list1 := make(map[restic.ID]int64)
+	list1 := make(map[string]int64)
 
 	for i := 0; i < numTestFiles; i++ {
 		data := test.Random(rand.Int(), rand.Intn(100)+55)
-		id := restic.Hash(data)
-		h := restic.Handle{Type: restic.PackFile, Name: id.String()}
+		id := dataName(data)
+		h := restic.Handle{Type: restic.PackFile, Name: id}
 		err := b.Save(context.TODO(), h, restic.NewByteReader(data, b.Hasher()))
 		if err != nil {
 			t.Fatal(err)
@@ -271,7 +277,7 @@ func (s *Suite) TestList(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("max-%v", test.maxItems), func(t *testing.T) {
-			list2 := make(map[restic.ID]int64)
+			list2 := make(map[string]int64)
 
 			type setter interface {
 				SetListMaxItems(int)
@@ -283,11 +289,7 @@ func (s *Suite) TestList(t *testing.T) {
 			}
 
 			err := b.List(context.TODO(), restic.PackFile, func(fi restic.FileInfo) error {
-				id, err := restic.ParseID(fi.Name)
-				if err != nil {
-					t.Fatal(err)
-				}
-				list2[id] = fi.Size
+				list2[fi.Name] = fi.Size
 				return nil
 			})
 
@@ -300,18 +302,18 @@ func (s *Suite) TestList(t *testing.T) {
 			for id, size := range list1 {
 				size2, ok := list2[id]
 				if !ok {
-					t.Errorf("id %v not returned by List()", id.Str())
+					t.Errorf("id %v not returned by List()", id)
 				}
 
 				if size != size2 {
-					t.Errorf("wrong size for id %v returned: want %v, got %v", id.Str(), size, size2)
+					t.Errorf("wrong size for id %v returned: want %v, got %v", id, size, size2)
 				}
 			}
 
 			for id := range list2 {
 				_, ok := list1[id]
 				if !ok {
-					t.Errorf("extra id %v returned by List()", id.Str())
+					t.Errorf("extra id %v returned by List()", id)
 				}
 			}
 		})
@@ -320,7 +322,7 @@ func (s *Suite) TestList(t *testing.T) {
 	t.Logf("remove %d files", numTestFiles)
 	handles := make([]restic.Handle, 0, len(list1))
 	for id := range list1 {
-		handles = append(handles, restic.Handle{Type: restic.PackFile, Name: id.String()})
+		handles = append(handles, restic.Handle{Type: restic.PackFile, Name: id})
 	}
 
 	err = s.delayedRemove(t, b, handles...)
@@ -342,8 +344,8 @@ func (s *Suite) TestListCancel(t *testing.T) {
 
 	for i := 0; i < numTestFiles; i++ {
 		data := []byte(fmt.Sprintf("random test blob %v", i))
-		id := restic.Hash(data)
-		h := restic.Handle{Type: restic.PackFile, Name: id.String()}
+		id := dataName(data)
+		h := restic.Handle{Type: restic.PackFile, Name: id}
 		err := b.Save(context.TODO(), h, restic.NewByteReader(data, b.Hasher()))
 		if err != nil {
 			t.Fatal(err)
@@ -475,7 +477,6 @@ func (s *Suite) TestSave(t *testing.T) {
 
 	b := s.open(t)
 	defer s.close(t, b)
-	var id restic.ID
 
 	saveTests := 10
 	if s.MinimalData {
@@ -485,11 +486,11 @@ func (s *Suite) TestSave(t *testing.T) {
 	for i := 0; i < saveTests; i++ {
 		length := rand.Intn(1<<23) + 200000
 		data := test.Random(23, length)
-		id = sha256.Sum256(data)
+		name := dataName(data)
 
 		h := restic.Handle{
 			Type: restic.PackFile,
-			Name: id.String(),
+			Name: name,
 		}
 		err := b.Save(context.TODO(), h, restic.NewByteReader(data, b.Hasher()))
 		test.OK(t, err)
@@ -529,7 +530,6 @@ func (s *Suite) TestSave(t *testing.T) {
 
 	length := rand.Intn(1<<23) + 200000
 	data := test.Random(23, length)
-	id = sha256.Sum256(data)
 
 	if _, err = tmpfile.Write(data); err != nil {
 		t.Fatal(err)
@@ -539,7 +539,7 @@ func (s *Suite) TestSave(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	h := restic.Handle{Type: restic.PackFile, Name: id.String()}
+	h := restic.Handle{Type: restic.PackFile, Name: dataName(data)}
 
 	// wrap the tempfile in an errorCloser, so we can detect if the backend
 	// closes the reader
@@ -598,11 +598,10 @@ func (s *Suite) TestSaveError(t *testing.T) {
 
 	length := rand.Intn(1<<23) + 200000
 	data := test.Random(24, length)
-	var id restic.ID
-	copy(id[:], data)
+	name := dataName(data)
 
 	// test that incomplete uploads fail
-	h := restic.Handle{Type: restic.PackFile, Name: id.String()}
+	h := restic.Handle{Type: restic.PackFile, Name: name}
 	err := b.Save(context.TODO(), h, &incompleteByteReader{ByteReader: *restic.NewByteReader(data, b.Hasher())})
 	// try to delete possible leftovers
 	_ = s.delayedRemove(t, b, h)
@@ -637,11 +636,10 @@ func (s *Suite) TestSaveWrongHash(t *testing.T) {
 
 	length := rand.Intn(1<<23) + 200000
 	data := test.Random(25, length)
-	var id restic.ID
-	copy(id[:], data)
+	name := dataName(data)
 
 	// test that upload with hash mismatch fails
-	h := restic.Handle{Type: restic.PackFile, Name: id.String()}
+	h := restic.Handle{Type: restic.PackFile, Name: name}
 	err := b.Save(context.TODO(), h, &wrongByteReader{ByteReader: *restic.NewByteReader(data, b.Hasher())})
 	exists, err2 := b.Test(context.TODO(), h)
 	if err2 != nil {
@@ -668,8 +666,8 @@ var testStrings = []struct {
 }
 
 func store(t testing.TB, b restic.Backend, tpe restic.FileType, data []byte) restic.Handle {
-	id := restic.Hash(data)
-	h := restic.Handle{Name: id.String(), Type: tpe}
+	id := dataName(data)
+	h := restic.Handle{Name: id, Type: tpe}
 	err := b.Save(context.TODO(), h, restic.NewByteReader([]byte(data), b.Hasher()))
 	test.OK(t, err)
 	return h
@@ -727,13 +725,12 @@ func (s *Suite) delayedRemove(t testing.TB, be restic.Backend, handles ...restic
 	return nil
 }
 
-func delayedList(t testing.TB, b restic.Backend, tpe restic.FileType, max int, maxwait time.Duration) restic.IDs {
-	list := restic.NewIDSet()
+func delayedList(t testing.TB, b restic.Backend, tpe restic.FileType, max int, maxwait time.Duration) []string {
+	list := make(map[string]struct{})
 	start := time.Now()
 	for i := 0; i < max; i++ {
 		err := b.List(context.TODO(), tpe, func(fi restic.FileInfo) error {
-			id := restic.TestParseID(fi.Name)
-			list.Insert(id)
+			list[fi.Name] = struct{}{}
 			return nil
 		})
 
@@ -746,7 +743,12 @@ func delayedList(t testing.TB, b restic.Backend, tpe restic.FileType, max int, m
 		}
 	}
 
-	return list.List()
+	var l []string
+	for k := range list {
+		l = append(l, k)
+	}
+
+	return l
 }
 
 // TestBackend tests all functions of the backend.
@@ -760,11 +762,8 @@ func (s *Suite) TestBackend(t *testing.T) {
 	} {
 		// detect non-existing files
 		for _, ts := range testStrings {
-			id, err := restic.ParseID(ts.id)
-			test.OK(t, err)
-
 			// test if blob is already in repository
-			h := restic.Handle{Type: tpe, Name: id.String()}
+			h := restic.Handle{Type: tpe, Name: ts.id}
 			ret, err := b.Test(context.TODO(), h)
 			test.OK(t, err)
 			test.Assert(t, !ret, "blob was found to exist before creating")
@@ -828,12 +827,10 @@ func (s *Suite) TestBackend(t *testing.T) {
 		test.OK(t, err)
 
 		// list items
-		IDs := restic.IDs{}
 
+		var IDs []string
 		for _, ts := range testStrings {
-			id, err := restic.ParseID(ts.id)
-			test.OK(t, err)
-			IDs = append(IDs, id)
+			IDs = append(IDs, ts.id)
 		}
 
 		list := delayedList(t, b, tpe, len(IDs), s.WaitForDelayedRemoval)
@@ -841,8 +838,8 @@ func (s *Suite) TestBackend(t *testing.T) {
 			t.Fatalf("wrong number of IDs returned: want %d, got %d", len(IDs), len(list))
 		}
 
-		sort.Sort(IDs)
-		sort.Sort(list)
+		sort.Strings(IDs)
+		sort.Strings(list)
 
 		if !reflect.DeepEqual(IDs, list) {
 			t.Fatalf("lists aren't equal, want:\n  %v\n  got:\n%v\n", IDs, list)
@@ -850,14 +847,11 @@ func (s *Suite) TestBackend(t *testing.T) {
 
 		var handles []restic.Handle
 		for _, ts := range testStrings {
-			id, err := restic.ParseID(ts.id)
-			test.OK(t, err)
-
-			h := restic.Handle{Type: tpe, Name: id.String()}
+			h := restic.Handle{Type: tpe, Name: ts.id}
 
 			found, err := b.Test(context.TODO(), h)
 			test.OK(t, err)
-			test.Assert(t, found, fmt.Sprintf("id %q not found", id))
+			test.Assert(t, found, fmt.Sprintf("id %q not found", ts.id))
 
 			handles = append(handles, h)
 		}

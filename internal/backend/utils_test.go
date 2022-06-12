@@ -3,11 +3,13 @@ package backend_test
 import (
 	"bytes"
 	"context"
+	"encoding/hex"
 	"io"
 	"io/ioutil"
 	"math/rand"
 	"testing"
 
+	"github.com/minio/sha256-simd"
 	"github.com/restic/restic/internal/backend"
 	"github.com/restic/restic/internal/backend/mem"
 	"github.com/restic/restic/internal/backend/mock"
@@ -19,6 +21,11 @@ import (
 const KiB = 1 << 10
 const MiB = 1 << 20
 
+func dataName(data []byte) string {
+	id := sha256.Sum256(data)
+	return hex.EncodeToString(id[:])
+}
+
 func TestLoadAll(t *testing.T) {
 	b := mem.New()
 	var buf []byte
@@ -26,12 +33,12 @@ func TestLoadAll(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		data := rtest.Random(23+i, rand.Intn(MiB)+500*KiB)
 
-		id := restic.Hash(data)
-		h := restic.Handle{Name: id.String(), Type: restic.PackFile}
+		id := dataName(data)
+		h := restic.Handle{Name: id, Type: restic.PackFile}
 		err := b.Save(context.TODO(), h, restic.NewByteReader(data, b.Hasher()))
 		rtest.OK(t, err)
 
-		buf, err := backend.LoadAll(context.TODO(), buf, b, restic.Handle{Type: restic.PackFile, Name: id.String()})
+		buf, err := backend.LoadAll(context.TODO(), buf, b, restic.Handle{Type: restic.PackFile, Name: id})
 		rtest.OK(t, err)
 
 		if len(buf) != len(data) {
@@ -47,8 +54,8 @@ func TestLoadAll(t *testing.T) {
 }
 
 func save(t testing.TB, be restic.Backend, buf []byte) restic.Handle {
-	id := restic.Hash(buf)
-	h := restic.Handle{Name: id.String(), Type: restic.PackFile}
+	id := dataName(buf)
+	h := restic.Handle{Name: id, Type: restic.PackFile}
 	err := be.Save(context.TODO(), h, restic.NewByteReader(buf, be.Hasher()))
 	if err != nil {
 		t.Fatal(err)
