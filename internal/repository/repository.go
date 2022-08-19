@@ -849,6 +849,7 @@ type BackendLoadFn func(ctx context.Context, h backend.Handle, length int, offse
 // Skip sections with more than 4MB unused blobs
 const maxUnusedRange = 4 * 1024 * 1024
 
+// FIXME bind to repository? FIXME requires checker.checkPack cleanup first
 // StreamPack loads the listed blobs from the specified pack file. The plaintext blob is passed to
 // the handleBlobFn callback or an error if decryption failed or the blob hash does not match. In
 // case of download errors handleBlobFn might be called multiple times for the same blob. If the

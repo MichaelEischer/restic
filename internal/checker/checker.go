@@ -497,6 +497,7 @@ func (c *Checker) GetPacks() map[restic.ID]int64 {
 	return c.packs
 }
 
+// FIXME split checker into data model and repository part
 // checkPack reads a pack and checks the integrity of all blobs.
 func checkPack(ctx context.Context, r restic.Repository, id restic.ID, blobs []restic.Blob, size int64, bufRd *bufio.Reader) error {
 	debug.Log("checking pack %v", id.String())
