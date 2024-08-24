@@ -28,6 +28,26 @@ The placeholder ``{path}`` in this document is a path to the repository, so
 that multiple different repositories can be accessed. The default path is
 ``/``. The path must end with a slash.
 
+HTTP error handling
+===================
+
+Most endpoints return "200 OK" if the requests was successful. If the description states
+"an HTTP error otherwise", then it should be handled as follows. "404 Not Found" MUST
+only be returned if the requested file does not exist. Unexpected errors like missing
+file permissions or errors while storing data SHOULD be reported as
+"500 Internal Server Error".
+
+An unexpected HTTP method results in a "405 Method Not Allowed" error. Calling a not
+existing endpoint results in a "404 Not Found" error.
+
+Append-Only Backend
+===================
+
+The backend MAY restrict clients to only add new data, but not delete existing data.
+This requires forbidding "DELETE" requests and "POST" requests that would overwrite
+existing data. As an exception, overwriting a file is allowed if it already contains
+the same data. In addition, clients are allowed to delete lock files.
+
 POST {path}?create=true
 =======================
 
@@ -40,14 +60,15 @@ DELETE {path}
 
 Deletes the repository on the server side. The server responds with "200
 OK" if the repository was successfully removed. If this function is not
-implemented the server returns "501 Not Implemented", if this it is
+implemented the server returns "501 Not Implemented", if it is
 denied by the server it returns "403 Forbidden".
 
 HEAD {path}/config
 ==================
 
 Returns "200 OK" if the repository has a configuration, an HTTP error
-otherwise.
+otherwise. On success, the response SHOULD include the ``Content-Length`` header
+with the size of the configuration file.
 
 GET {path}/config
 =================
@@ -55,13 +76,22 @@ GET {path}/config
 Returns the content of the configuration file if the repository has a
 configuration, an HTTP error otherwise.
 
-Response format: binary/octet-stream
+On success, the response SHOULD include the ``Content-Length`` header
+with the size of the configuration file.
+
+``Content-Type``: binary/octet-stream
 
 POST {path}/config
 ==================
 
 Returns "200 OK" if the configuration of the request body has been
 saved, an HTTP error otherwise.
+
+DELETE {path}/config
+====================
+
+Returns "200 OK" if the configuration file has been deleted from the repository
+or does not exist, an HTTP error otherwise.
 
 GET {path}/{type}/
 ==================
@@ -113,33 +143,35 @@ HEAD {path}/{type}/{name}
 =========================
 
 Returns "200 OK" if the blob with the given name and type is stored in
-the repository, "404 not found" otherwise. If the blob exists, the HTTP
+the repository, an HTTP error otherwise. If the blob exists, the HTTP
 header ``Content-Length`` is set to the file size.
 
 GET {path}/{type}/{name}
 ========================
 
 Returns the content of the blob with the given name and type if it is
-stored in the repository, "404 not found" otherwise.
+stored in the repository, an HTTP error otherwise.
 
-If the request specifies a partial read with a Range header field, then
+If the request specifies a partial read with a ``Range`` header field, then
 the status code of the response is 206 instead of 200 and the response
 only contains the specified range.
 
-Response format: binary/octet-stream
+``Content-Type``: binary/octet-stream
 
 POST {path}/{type}/{name}
 =========================
 
-Saves the content of the request body as a blob with the given name and
-type, an HTTP error otherwise.
+Atomically saves the content of the request body as a blob with the given
+name and type, an HTTP error otherwise. An upload MUST either complete
+successfully or fail without modifying data on the server.
 
-Request format: binary/octet-stream
+``Content-Type``: binary/octet-stream
+
+The server should check that the SHA256 hash of the content of the request
+body matches the file name. In case of a mismatch, return "400 Bad Request".
 
 DELETE {path}/{type}/{name}
 ===========================
 
 Returns "200 OK" if the blob with the given name and type has been
-deleted from the repository, an HTTP error otherwise.
-
-
+deleted from the repository or does not exist, an HTTP error otherwise.
