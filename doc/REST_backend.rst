@@ -117,6 +117,10 @@ GET {path}/{type}/
 API version 1
 -------------
 
+.. note
+
+  Version 1 is deprecated.
+
 Returns a JSON array containing the names of all the blobs stored for a given
 type, example:
 
@@ -156,6 +160,46 @@ bytes.
         "size": 2804
       }
     ]
+
+If no entries exist, then an empty array object must be returned.
+
+API version 3
+-------------
+
+API version 3 adds support for pagination and accepts the following query parameters:
+
+- ``continue``: Opaque continuation token returned by the server in a
+  previous response. On the first request, clients MUST omit this parameter or set it
+  to an empty string.
+- ``count``: Target count of items in the reply. The response from the server MAY exceed
+  this count for performance reason.
+
+Returns a JSON object containing the following keys:
+
+- ``continue`` is an opaque string value that allows the client to continue listing
+  the items by issuing further requests using the token. The token MUST be set in the
+  reply if further data can be retrieved and MUST be an empty string or unset if no
+  further data is available. The token MUST not be interpreted by clients in any way.
+  Later requests using the continue token may return newer data.
+- ``items`` is an array containing an object for each file of the given type. The
+  objects have two keys: ``name`` for the file name, and ``size`` for the size in bytes.
+  If no entries exist, then ``items`` is an empty array.
+
+.. code:: json
+
+    {
+      "continue": "OPAQUE_TOKEN",
+      "items": [
+        {
+          "name": "245bc4c430d393f74fbe7b13325e30dbde9fb0745e50caad57c446c93d20096b",
+          "size": 2341058
+        },
+        {
+          "name": "85b420239efa1132c41cea0065452a40ebc20c6f8e0b132a5b2f5848360973ec",
+          "size": 2908900
+        }
+      ]
+    }
 
 HEAD {path}/{type}/{name}
 =========================
