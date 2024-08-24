@@ -2,8 +2,7 @@
 REST Backend
 ************
 
-Restic can interact with HTTP Backend that respects the following REST
-API.
+Restic can interact with an HTTP Backend that respects the following REST API.
 
 The following values are valid for ``{type}``:
 
@@ -14,19 +13,38 @@ The following values are valid for ``{type}``:
 * ``index``
 * ``config``
 
-The API version is selected via the ``Accept`` HTTP header in the request. The
-following values are defined:
-
-* ``application/vnd.x.restic.rest.v1`` or empty: Select API version 1
-* ``application/vnd.x.restic.rest.v2``: Select API version 2
-
-The server will respond with the value of the highest version it supports in
-the ``Content-Type`` HTTP response header for the HTTP requests which should
-return JSON. Any different value for this header means API version 1.
-
 The placeholder ``{path}`` in this document is a path to the repository, so
 that multiple different repositories can be accessed. The default path is
 ``/``. The path must end with a slash.
+
+Version Negotiation
+===================
+
+The API version is selected via the ``Accept`` HTTP header in the client's request.
+The following values are defined:
+
+* ``application/vnd.x.restic.rest.v1`` or empty: Select API version 1 (deprecated)
+* ``application/vnd.x.restic.rest.v2``: Select API version 2
+* ``application/vnd.x.restic.rest.v3``: Select API version 3
+
+Endpoints for which no version-specific behavior is described, behave identically for
+all supported versions.
+
+The server MUST return a "406 Not Acceptable" error if the requested API version
+is not supported. Server implementations MUST set the ``Content-Type`` HTTP response
+header if the called endpoint returns a JSON response and does not specify a
+different value for that header. ``GET {path}/{type}/`` is currently the only such
+endpoint. Clients MUST nevertheless include the ``Accept`` HTTP header in every request.
+
+For compatibility with older server implementations, client implementations SHOULD be
+prepared to handle the following behavior:
+
+- Some server implementations return "400 Bad Request" when the client requests an
+  API version other than 2. This should be treated equivalently to a "406 Not Acceptable"
+  error.
+- Some server implementations fall back to API version 1 when the client requests an
+  unsupported API version. The client should check the ``Content-Type`` header of the
+  response to detect this case. A missing / unexpected header value means API version 1.
 
 HTTP error handling
 ===================
