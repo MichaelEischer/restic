@@ -102,7 +102,7 @@ with the size of the configuration file.
 POST {path}/config
 ==================
 
-Returns "200 OK" if the configuration of the request body has been
+Returns "200 OK" if the configuration from the request body has been
 saved, an HTTP error otherwise.
 
 DELETE {path}/config
@@ -161,7 +161,9 @@ bytes.
       }
     ]
 
-If no entries exist, then an empty array object must be returned.
+If no entries exist, then an empty array object must be returned. If the
+repository does not contain a folder for the requested type, this must be
+treated like an empty folder.
 
 API version 3
 -------------
