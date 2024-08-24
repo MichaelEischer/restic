@@ -102,14 +102,21 @@ with the size of the configuration file.
 POST {path}/config
 ==================
 
-Returns "200 OK" if the configuration from the request body has been
-saved, an HTTP error otherwise.
+Atomically saves the content of the request body as configuration file,
+an HTTP error otherwise. An upload MUST either complete successfully or
+fail without modifying data on the server.
+
+Starting from API version 3, the server MUST allow re-uploads of an already
+existing configuration file unless it is in append-only mode. This allows
+clients to retry requests and update the configuration file.
+Older API versions MAY allow such uploads.
 
 DELETE {path}/config
 ====================
 
-Returns "200 OK" if the configuration file has been deleted from the repository
-or does not exist, an HTTP error otherwise.
+Returns "200 OK" if the configuration file has been deleted from the
+repository or does not exist (to allow clients to retry requests),
+an HTTP error otherwise.
 
 GET {path}/{type}/
 ==================
@@ -234,8 +241,14 @@ successfully or fail without modifying data on the server.
 The server should check that the SHA256 hash of the content of the request
 body matches the file name. In case of a mismatch, return "400 Bad Request".
 
+Starting from API version 3, the server MUST allow re-uploads for already
+existing files. This allows clients to retry requests. Re-uploads SHOULD
+be combined with a hash verification of the upload. In append-only mode,
+hash verification MUST be used. Older API versions MAY allow such uploads.
+
 DELETE {path}/{type}/{name}
 ===========================
 
 Returns "200 OK" if the blob with the given name and type has been
-deleted from the repository or does not exist, an HTTP error otherwise.
+deleted from the repository or does not exist (to allow clients to retry
+requests), an HTTP error otherwise.
