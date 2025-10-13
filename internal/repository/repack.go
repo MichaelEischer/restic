@@ -49,7 +49,7 @@ func Repack(
 		return errors.New("repack step requires a backend connection limit of at least two")
 	}
 
-	return dstRepo.WithBlobUploader(ctx, func(ctx context.Context, uploader restic.BlobSaver) error {
+	return dstRepo.WithBlobUploader(ctx, func(ctx context.Context, uploader restic.BlobSaverWithAsync) error {
 		return repack(ctx, repo, dstRepo, uploader, packs, keepBlobs, p, logf)
 	})
 }
@@ -58,7 +58,7 @@ func repack(
 	ctx context.Context,
 	repo restic.Repository,
 	dstRepo restic.Repository,
-	uploader restic.BlobSaver,
+	uploader restic.BlobSaverWithAsync,
 	packs restic.IDSet,
 	keepBlobs repackBlobSet,
 	p *progress.Counter,
