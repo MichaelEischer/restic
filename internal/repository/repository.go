@@ -560,10 +560,23 @@ func (r *Repository) removeUnpacked(ctx context.Context, t restic.FileType, id r
 }
 
 func (r *Repository) WithBlobUploader(ctx context.Context, fn func(ctx context.Context, uploader restic.BlobSaver) error) error {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	wg, ctx := errgroup.WithContext(ctx)
 	r.startPackUploader(ctx, wg)
 	wg.Go(func() error {
-		if err := fn(ctx, &blobSaverRepo{repo: r}); err != nil {
+		inCallback := true
+		defer func() {
+			// when the defer is called while inCallback is true, this means
+			// that runtime.Goexit was called within `fn`. This should only happen
+			// if a test uses t.Fatal within `fn`.
+			if inCallback {
+				cancel()
+			}
+		}()
+		err := fn(ctx, &blobSaverRepo{repo: r})
+		inCallback = false
+		if err != nil {
 			return err
 		}
 		if err := r.flush(ctx); err != nil {
