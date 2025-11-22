@@ -210,7 +210,7 @@ func copyTree(ctx context.Context, srcRepo restic.Repository, dstRepo restic.Rep
 		visited := visitedTrees.Has(treeID)
 		visitedTrees.Insert(treeID)
 		return visited
-	}, func(treeID restic.ID, err error, tree *data.Tree) error {
+	}, func(treeID restic.ID, err error, nodes data.TreeNodeIterator) error {
 		if err != nil {
 			return fmt.Errorf("LoadTree(%v) returned error %v", treeID.Str(), err)
 		}
@@ -222,10 +222,13 @@ func copyTree(ctx context.Context, srcRepo restic.Repository, dstRepo restic.Rep
 			enqueue(treeHandle)
 		}
 
-		for _, entry := range tree.Nodes {
+		for item := range nodes {
+			if item.Error != nil {
+				return item.Error
+			}
 			// Recursion into directories is handled by StreamTrees
 			// Copy the blobs for this file.
-			for _, blobID := range entry.Content {
+			for _, blobID := range item.Node.Content {
 				h := restic.BlobHandle{Type: restic.DataBlob, ID: blobID}
 				if _, ok := dstRepo.LookupBlobSize(h.Type, h.ID); !ok {
 					enqueue(h)
