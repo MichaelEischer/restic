@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/restic/restic/internal/data"
 	"github.com/restic/restic/internal/debug"
@@ -12,7 +13,6 @@ import (
 	"github.com/restic/restic/internal/restic"
 	"github.com/restic/restic/internal/ui"
 	"github.com/restic/restic/internal/ui/progress"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -192,18 +192,13 @@ func similarSnapshots(sna *data.Snapshot, snb *data.Snapshot) bool {
 func copyTree(ctx context.Context, srcRepo restic.Repository, dstRepo restic.Repository,
 	visitedTrees restic.IDSet, rootTreeID restic.ID, printer progress.Printer) error {
 
-	wg, wgCtx := errgroup.WithContext(ctx)
-
-	treeStream := data.StreamTrees(wgCtx, wg, srcRepo, restic.IDs{rootTreeID}, func(treeID restic.ID) bool {
-		visited := visitedTrees.Has(treeID)
-		visitedTrees.Insert(treeID)
-		return visited
-	}, nil)
-
 	copyBlobs := restic.NewBlobSet()
 	packList := restic.NewIDSet()
+	var lock sync.Mutex
 
 	enqueue := func(h restic.BlobHandle) {
+		lock.Lock()
+		defer lock.Unlock()
 		pb := srcRepo.LookupBlob(h.Type, h.ID)
 		copyBlobs.Insert(h)
 		for _, p := range pb {
@@ -211,33 +206,34 @@ func copyTree(ctx context.Context, srcRepo restic.Repository, dstRepo restic.Rep
 		}
 	}
 
-	wg.Go(func() error {
-		for tree := range treeStream {
-			if tree.Error != nil {
-				return fmt.Errorf("LoadTree(%v) returned error %v", tree.ID.Str(), tree.Error)
-			}
+	err := data.StreamTrees(ctx, srcRepo, restic.IDs{rootTreeID}, nil, func(treeID restic.ID) bool {
+		visited := visitedTrees.Has(treeID)
+		visitedTrees.Insert(treeID)
+		return visited
+	}, func(treeID restic.ID, err error, tree *data.Tree) error {
+		if err != nil {
+			return fmt.Errorf("LoadTree(%v) returned error %v", treeID.Str(), err)
+		}
 
-			// Do we already have this tree blob?
-			treeHandle := restic.BlobHandle{ID: tree.ID, Type: restic.TreeBlob}
-			if _, ok := dstRepo.LookupBlobSize(treeHandle.Type, treeHandle.ID); !ok {
-				// copy raw tree bytes to avoid problems if the serialization changes
-				enqueue(treeHandle)
-			}
+		// Do we already have this tree blob?
+		treeHandle := restic.BlobHandle{ID: treeID, Type: restic.TreeBlob}
+		if _, ok := dstRepo.LookupBlobSize(treeHandle.Type, treeHandle.ID); !ok {
+			// copy raw tree bytes to avoid problems if the serialization changes
+			enqueue(treeHandle)
+		}
 
-			for _, entry := range tree.Nodes {
-				// Recursion into directories is handled by StreamTrees
-				// Copy the blobs for this file.
-				for _, blobID := range entry.Content {
-					h := restic.BlobHandle{Type: restic.DataBlob, ID: blobID}
-					if _, ok := dstRepo.LookupBlobSize(h.Type, h.ID); !ok {
-						enqueue(h)
-					}
+		for _, entry := range tree.Nodes {
+			// Recursion into directories is handled by StreamTrees
+			// Copy the blobs for this file.
+			for _, blobID := range entry.Content {
+				h := restic.BlobHandle{Type: restic.DataBlob, ID: blobID}
+				if _, ok := dstRepo.LookupBlobSize(h.Type, h.ID); !ok {
+					enqueue(h)
 				}
 			}
 		}
 		return nil
 	})
-	err := wg.Wait()
 	if err != nil {
 		return err
 	}
