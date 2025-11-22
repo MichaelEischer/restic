@@ -125,7 +125,7 @@ func runCopy(ctx context.Context, opts CopyOptions, gopts global.Options, args [
 	}
 
 	// remember already processed trees across all snapshots
-	visitedTrees := restic.NewIDSet()
+	visitedTrees := srcRepo.NewAssociatedBlobSet()
 
 	for sn := range FindFilteredSnapshots(ctx, srcSnapshotLister, srcRepo, &opts.SnapshotFilter, args, printer) {
 		// check whether the destination has a snapshot with the same persistent ID which has similar snapshot fields
@@ -190,13 +190,14 @@ func similarSnapshots(sna *data.Snapshot, snb *data.Snapshot) bool {
 }
 
 func copyTree(ctx context.Context, srcRepo restic.Repository, dstRepo restic.Repository,
-	visitedTrees restic.IDSet, rootTreeID restic.ID, printer progress.Printer) error {
+	visitedTrees restic.AssociatedBlobSet, rootTreeID restic.ID, printer progress.Printer) error {
 
 	wg, wgCtx := errgroup.WithContext(ctx)
 
 	treeStream := data.StreamTrees(wgCtx, wg, srcRepo, restic.IDs{rootTreeID}, func(treeID restic.ID) bool {
-		visited := visitedTrees.Has(treeID)
-		visitedTrees.Insert(treeID)
+		handle := restic.BlobHandle{ID: treeID, Type: restic.TreeBlob}
+		visited := visitedTrees.Has(handle)
+		visitedTrees.Insert(handle)
 		return visited
 	}, nil)
 
