@@ -30,7 +30,7 @@ require (
 	github.com/pkg/profile v1.7.0
 	github.com/pkg/sftp v1.13.10
 	github.com/pkg/xattr v0.4.12
-	github.com/restic/chunker v0.4.0
+	github.com/restic/chunker v0.4.1-0.20231001122857-ac4c622f4b08
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/pflag v1.0.10
 	go.uber.org/automaxprocs v1.6.0
@@ -106,3 +106,5 @@ require (
 	google.golang.org/grpc v1.81.1 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
+
+replace github.com/restic/chunker => github.com/MichaelEischer/chunker v0.2.1-0.20260614173328-28f9805b9f2b
