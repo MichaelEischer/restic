@@ -11,7 +11,6 @@ import (
 	"github.com/restic/restic/internal/debug"
 	"github.com/restic/restic/internal/errors"
 	"github.com/restic/restic/internal/feature"
-	"github.com/restic/restic/internal/repository"
 	"github.com/restic/restic/internal/restic"
 	"github.com/restic/restic/internal/ui/restore"
 )
@@ -73,7 +72,8 @@ func newFileRestorer(dst string,
 	sparse bool,
 	allowRecursiveDelete bool,
 	startWarmup startWarmupFn,
-	progress *restore.Progress) *fileRestorer {
+	progress *restore.Progress,
+	zeroChunk restic.ID) *fileRestorer {
 
 	// as packs are streamed the concurrency is limited by IO
 	workerCount := int(connections)
@@ -83,7 +83,7 @@ func newFileRestorer(dst string,
 		blobsLoader:          blobsLoader,
 		startWarmup:          startWarmup,
 		filesWriter:          newFilesWriter(workerCount, allowRecursiveDelete),
-		zeroChunk:            repository.ZeroChunk(),
+		zeroChunk:            zeroChunk,
 		sparse:               sparse,
 		progress:             progress,
 		allowRecursiveDelete: allowRecursiveDelete,
