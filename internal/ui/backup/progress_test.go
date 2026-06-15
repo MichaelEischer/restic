@@ -57,7 +57,6 @@ func TestProgress(t *testing.T) {
 	// "file new"
 	prog.CompleteItem("foo", archiver.ActionFileNew, archiver.ItemStats{}, 0)
 
-	time.Sleep(10 * time.Millisecond)
 	id := restic.NewRandomID()
 	prog.Finish(id, nil, false)
 

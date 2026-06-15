@@ -1,7 +1,9 @@
 package progress_test
 
 import (
+	"os"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/restic/restic/internal/test"
@@ -9,26 +11,29 @@ import (
 )
 
 func TestUpdater(t *testing.T) {
-	var (
-		finalSeen = false
-		ncalls    = 0
-		dur       time.Duration
-	)
+	synctest.Test(t, func(t *testing.T) {
+		var (
+			finalSeen = false
+			ncalls    = 0
+			dur       time.Duration
+		)
 
-	report := func(d time.Duration, final bool) {
-		if final {
-			finalSeen = true
+		report := func(d time.Duration, final bool) {
+			if final {
+				finalSeen = true
+			}
+			dur = d
+			ncalls++
 		}
-		dur = d
-		ncalls++
-	}
-	c := progress.NewUpdater(10*time.Millisecond, report)
-	time.Sleep(100 * time.Millisecond)
-	c.Done()
+		c := progress.NewUpdaterForTest(10*time.Millisecond, report, make(chan os.Signal))
+		time.Sleep(100 * time.Millisecond)
+		synctest.Wait()
+		c.Done()
 
-	test.Assert(t, finalSeen, "final call did not happen")
-	test.Assert(t, ncalls > 0, "no progress was reported")
-	test.Assert(t, dur > 0, "duration must be positive")
+		test.Assert(t, finalSeen, "final call did not happen")
+		test.Assert(t, ncalls > 0, "no progress was reported")
+		test.Assert(t, dur > 0, "duration must be positive")
+	})
 }
 
 func TestUpdaterStopTwice(_ *testing.T) {
@@ -39,20 +44,21 @@ func TestUpdaterStopTwice(_ *testing.T) {
 }
 
 func TestUpdaterNoTick(t *testing.T) {
-	finalSeen := false
-	otherSeen := false
+	synctest.Test(t, func(t *testing.T) {
+		finalSeen := false
+		otherSeen := false
 
-	report := func(d time.Duration, final bool) {
-		if final {
-			finalSeen = true
-		} else {
-			otherSeen = true
+		report := func(d time.Duration, final bool) {
+			if final {
+				finalSeen = true
+			} else {
+				otherSeen = true
+			}
 		}
-	}
-	c := progress.NewUpdater(0, report)
-	time.Sleep(time.Millisecond)
-	c.Done()
+		c := progress.NewUpdaterForTest(0, report, make(chan os.Signal))
+		c.Done()
 
-	test.Assert(t, finalSeen, "final call did not happen")
-	test.Assert(t, !otherSeen, "unexpected status update")
+		test.Assert(t, finalSeen, "final call did not happen")
+		test.Assert(t, !otherSeen, "unexpected status update")
+	})
 }
