@@ -1,6 +1,7 @@
 package progress
 
 import (
+	"os"
 	"time"
 
 	"github.com/restic/restic/internal/debug"
@@ -22,15 +23,21 @@ type Updater struct {
 	stopped chan struct{} // Closed by run.
 	stop    chan struct{} // Close to stop run.
 	tick    *time.Ticker
+	signal  <-chan os.Signal // if non-nil, used instead of OS signals
 }
 
 // NewUpdater starts a new Updater.
 func NewUpdater(interval time.Duration, report UpdateFunc) *Updater {
+	return newUpdater(interval, report, nil)
+}
+
+func newUpdater(interval time.Duration, report UpdateFunc, signal <-chan os.Signal) *Updater {
 	c := &Updater{
 		report:  report,
 		start:   time.Now(),
 		stopped: make(chan struct{}),
 		stop:    make(chan struct{}),
+		signal:  signal,
 	}
 
 	if interval > 0 {
@@ -62,7 +69,10 @@ func (c *Updater) run() {
 	if c.tick != nil {
 		tick = c.tick.C
 	}
-	signalsCh := signals.GetProgressChannel()
+	signalsCh := c.signal
+	if c.signal == nil {
+		signalsCh = signals.GetProgressChannel()
+	}
 	for final := false; !final; {
 		var now time.Time
 

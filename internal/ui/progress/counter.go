@@ -1,6 +1,7 @@
 package progress
 
 import (
+	"os"
 	"sync/atomic"
 	"time"
 
@@ -26,14 +27,18 @@ var _ restic.Counter = (*Counter)(nil)
 
 // NewCounter starts a new Counter.
 func NewCounter(interval time.Duration, total uint64, report Func) *Counter {
+	return newCounter(interval, total, report, nil)
+}
+
+func newCounter(interval time.Duration, total uint64, report Func, signal <-chan os.Signal) *Counter {
 	c := new(Counter)
 	c.max.Store(total)
-	c.Updater = *NewUpdater(interval, func(runtime time.Duration, final bool) {
+	c.Updater = *newUpdater(interval, func(runtime time.Duration, final bool) {
 		v, maxV := c.Get()
 		if report != nil {
 			report(v, maxV, runtime, final)
 		}
-	})
+	}, signal)
 	return c
 }
 
