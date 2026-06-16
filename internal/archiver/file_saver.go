@@ -37,7 +37,7 @@ func newFileSaver(ctx context.Context, wg *errgroup.Group, uploader restic.BlobS
 
 	s := &fileSaver{
 		uploader:     uploader,
-		saveFilePool: newBufferPool(chunker.MaxSize),
+		saveFilePool: newBufferPool(chunker.MinSize),
 		pol:          pol,
 		ch:           ch,
 
