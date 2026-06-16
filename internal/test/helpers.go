@@ -1,15 +1,16 @@
 package test
 
 import (
+	"archive/tar"
 	"compress/bzip2"
 	"compress/gzip"
 	"fmt"
 	"io"
 	"math/rand"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/restic/restic/internal/errors"
@@ -122,17 +123,115 @@ func SetupTarTestFixture(t testing.TB, outputDir, tarFile string) {
 		rd = input
 	}
 
-	cmd := exec.Command("tar", "xf", "-")
-	cmd.Dir = outputDir
+	extractTar(t, rd, outputDir)
+}
 
-	cmd.Stdin = rd
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+func extractTar(t testing.TB, rd io.Reader, outputDir string) {
+	t.Helper()
+	outputDir = filepath.Clean(outputDir) + string(os.PathSeparator)
 
-	err = cmd.Run()
-	if err != nil {
-		t.Fatalf("running command %v %v failed: %v", cmd.Path, cmd.Args, err)
+	tr := tar.NewReader(rd)
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			return
+		}
+		OK(t, err)
+
+		if !validTarPath(outputDir, hdr.Name) {
+			t.Fatalf("invalid path in tar archive: %q", hdr.Name)
+		}
+
+		target := filepath.Join(outputDir, hdr.Name)
+		mode := os.FileMode(hdr.Mode)
+
+		switch hdr.Typeflag {
+		case tar.TypeDir:
+			OK(t, os.MkdirAll(target, mode))
+		case tar.TypeReg, tar.TypeRegA:
+			OK(t, os.MkdirAll(filepath.Dir(target), 0755))
+			f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
+			OK(t, err)
+			_, err = io.Copy(f, tr)
+			OK(t, err)
+			OK(t, f.Close())
+		case tar.TypeSymlink:
+			OK(t, os.MkdirAll(filepath.Dir(target), 0755))
+			OK(t, os.Symlink(hdr.Linkname, target))
+		case tar.TypeLink:
+			linkTarget := filepath.Join(outputDir, hdr.Linkname)
+			if !validTarPath(outputDir, hdr.Linkname) {
+				t.Fatalf("invalid hard link target in tar archive: %q", hdr.Linkname)
+			}
+			OK(t, os.MkdirAll(filepath.Dir(target), 0755))
+			OK(t, os.Link(linkTarget, target))
+		default:
+			t.Fatalf("unsupported tar entry type %c for %q", hdr.Typeflag, hdr.Name)
+		}
 	}
+}
+
+func validTarPath(outputDir, name string) bool {
+	if filepath.IsAbs(name) {
+		return false
+	}
+	target := filepath.Clean(filepath.Join(outputDir, name))
+	return strings.HasPrefix(target+string(os.PathSeparator), outputDir) || target+string(os.PathSeparator) == outputDir
+}
+
+// CopyDir recursively copies the contents of src into dst. dst must exist.
+func CopyDir(t testing.TB, src, dst string) {
+	t.Helper()
+	err := filepath.Walk(src, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		if rel == "." {
+			return nil
+		}
+
+		target := filepath.Join(dst, rel)
+		if info.IsDir() {
+			return os.MkdirAll(target, info.Mode())
+		}
+
+		if info.Mode()&os.ModeSymlink != 0 {
+			link, err := os.Readlink(path)
+			if err != nil {
+				return err
+			}
+			return os.Symlink(link, target)
+		}
+
+		if !isFile(info) {
+			return nil
+		}
+
+		if err := os.MkdirAll(filepath.Dir(target), 0755); err != nil {
+			return err
+		}
+
+		in, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer in.Close()
+
+		out, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode())
+		if err != nil {
+			return err
+		}
+		defer out.Close()
+
+		_, err = io.Copy(out, in)
+		return err
+	})
+	OK(t, err)
 }
 
 // Env creates a test environment and extracts the repository fixture.

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/restic/restic/internal/backend"
@@ -26,6 +27,36 @@ import (
 	"github.com/restic/restic/internal/ui/progress"
 	"github.com/restic/restic/internal/ui/termstatus"
 )
+
+const backupDataFixtureTar = "testdata/backup-data.tar.gz"
+
+var (
+	backupDataFixtureOnce sync.Once
+	backupDataFixtureDir  string
+)
+
+func TestMain(m *testing.M) {
+	code := m.Run()
+	if backupDataFixtureDir != "" {
+		if !rtest.TestCleanupTempDirs {
+			fmt.Fprintf(os.Stderr, "leaving backup data cache at %s\n", backupDataFixtureDir)
+		} else {
+			_ = os.RemoveAll(backupDataFixtureDir)
+		}
+	}
+	os.Exit(code)
+}
+
+func cachedBackupDataDir(t testing.TB) string {
+	t.Helper()
+	backupDataFixtureOnce.Do(func() {
+		var err error
+		backupDataFixtureDir, err = os.MkdirTemp(rtest.TestTempDir, "restic-backup-data-cache-")
+		rtest.OK(t, err)
+		rtest.SetupTarTestFixture(t, backupDataFixtureDir, backupDataFixtureTar)
+	})
+	return backupDataFixtureDir
+}
 
 type dirEntry struct {
 	path string
@@ -237,10 +268,9 @@ func withTestEnvironment(t testing.TB) (env *testEnvironment, cleanup func()) {
 }
 
 func testSetupBackupData(t testing.TB, env *testEnvironment) string {
-	datafile := filepath.Join("testdata", "backup-data.tar.gz")
 	testRunInit(t, env.gopts)
-	rtest.SetupTarTestFixture(t, env.testdata, datafile)
-	return datafile
+	rtest.CopyDir(t, cachedBackupDataDir(t), env.testdata)
+	return backupDataFixtureTar
 }
 
 func listPacks(gopts global.Options, t *testing.T) restic.IDSet {
