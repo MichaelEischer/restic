@@ -35,11 +35,15 @@ func testRunPruneOutput(t testing.TB, gopts global.Options, opts PruneOptions) e
 }
 
 func TestPrune(t *testing.T) {
-	testPruneVariants(t, false)
-	testPruneVariants(t, true)
+	template, cleanup := withTestEnvironment(t)
+	defer cleanup()
+	createPrunableRepo(t, template)
+
+	testPruneVariants(t, template, false)
+	testPruneVariants(t, template, true)
 }
 
-func testPruneVariants(t *testing.T, unsafeNoSpaceRecovery bool) {
+func testPruneVariants(t *testing.T, template *testEnvironment, unsafeNoSpaceRecovery bool) {
 	suffix := ""
 	if unsafeNoSpaceRecovery {
 		suffix = "-recovery"
@@ -47,25 +51,25 @@ func testPruneVariants(t *testing.T, unsafeNoSpaceRecovery bool) {
 	t.Run("0"+suffix, func(t *testing.T) {
 		opts := PruneOptions{MaxUnused: "0%", unsafeRecovery: unsafeNoSpaceRecovery}
 		checkOpts := CheckOptions{ReadData: true, CheckUnused: !unsafeNoSpaceRecovery}
-		testPrune(t, opts, checkOpts)
+		testPrune(t, template, opts, checkOpts)
 	})
 
 	t.Run("50"+suffix, func(t *testing.T) {
 		opts := PruneOptions{MaxUnused: "50%", unsafeRecovery: unsafeNoSpaceRecovery}
 		checkOpts := CheckOptions{ReadData: true}
-		testPrune(t, opts, checkOpts)
+		testPrune(t, template, opts, checkOpts)
 	})
 
 	t.Run("unlimited"+suffix, func(t *testing.T) {
 		opts := PruneOptions{MaxUnused: "unlimited", unsafeRecovery: unsafeNoSpaceRecovery}
 		checkOpts := CheckOptions{ReadData: true}
-		testPrune(t, opts, checkOpts)
+		testPrune(t, template, opts, checkOpts)
 	})
 
 	t.Run("CacheableOnly"+suffix, func(t *testing.T) {
 		opts := PruneOptions{MaxUnused: "5%", RepackCacheableOnly: true, unsafeRecovery: unsafeNoSpaceRecovery}
 		checkOpts := CheckOptions{ReadData: true}
-		testPrune(t, opts, checkOpts)
+		testPrune(t, template, opts, checkOpts)
 	})
 }
 
@@ -109,11 +113,12 @@ func testRunForgetJSON(t testing.TB, gopts global.Options, args ...string) {
 		"Expected 2 snapshots to be removed, got %v", len(forgets[0].Remove))
 }
 
-func testPrune(t *testing.T, pruneOpts PruneOptions, checkOpts CheckOptions) {
+func testPrune(t *testing.T, template *testEnvironment, pruneOpts PruneOptions, checkOpts CheckOptions) {
+	t.Helper()
 	env, cleanup := withTestEnvironment(t)
 	defer cleanup()
 
-	createPrunableRepo(t, env)
+	rtest.CopyDir(t, template.repo, env.repo)
 	testRunPrune(t, env.gopts, pruneOpts)
 	rtest.OK(t, withTermStatus(t, env.gopts, func(ctx context.Context, gopts global.Options) error {
 		_, err := runCheck(context.TODO(), checkOpts, gopts, nil, gopts.Term)
