@@ -57,8 +57,8 @@ func TestRoundtrip(t *testing.T) {
 				// so goroutines blocked on pipe I/O are durably blocked within
 				// the synctest bubble and fake time can advance past time.Sleep.
 				srvConn, cliConn := net.Pipe()
-				defer srvConn.Close()
-				defer cliConn.Close()
+				defer func() { _ = srvConn.Close() }()
+				defer func() { _ = cliConn.Close() }()
 
 				srv := &http.Server{
 					Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -80,7 +80,7 @@ func TestRoundtrip(t *testing.T) {
 					}),
 				}
 				go srv.Serve(&oneConnListener{conn: srvConn, addr: srvConn.LocalAddr()}) //nolint:errcheck
-				defer srv.Close()
+				defer func() { _ = srv.Close() }()
 
 				transport := &http.Transport{
 					DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
@@ -170,8 +170,8 @@ func TestUploadTimeout(t *testing.T) {
 
 		msg := []byte("ping")
 		srvConn, cliConn := net.Pipe()
-		defer srvConn.Close()
-		defer cliConn.Close()
+		defer func() { _ = srvConn.Close() }()
+		defer func() { _ = cliConn.Close() }()
 		srv := &http.Server{
 			Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				_, err := io.ReadAll(r.Body)
@@ -183,7 +183,7 @@ func TestUploadTimeout(t *testing.T) {
 			}),
 		}
 		go srv.Serve(&oneConnListener{conn: srvConn, addr: srvConn.LocalAddr()}) //nolint:errcheck
-		defer srv.Close()
+		defer func() { _ = srv.Close() }()
 		transport := &http.Transport{
 			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
 				return cliConn, nil
@@ -215,8 +215,8 @@ func TestProcessingTimeout(t *testing.T) {
 
 		msg := []byte("ping")
 		srvConn, cliConn := net.Pipe()
-		defer srvConn.Close()
-		defer cliConn.Close()
+		defer func() { _ = srvConn.Close() }()
+		defer func() { _ = cliConn.Close() }()
 		srv := &http.Server{
 			Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				_, err := io.ReadAll(r.Body)
@@ -229,7 +229,7 @@ func TestProcessingTimeout(t *testing.T) {
 			}),
 		}
 		go srv.Serve(&oneConnListener{conn: srvConn, addr: srvConn.LocalAddr()}) //nolint:errcheck
-		defer srv.Close()
+		defer func() { _ = srv.Close() }()
 		transport := &http.Transport{
 			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
 				return cliConn, nil
@@ -261,8 +261,8 @@ func TestDownloadTimeout(t *testing.T) {
 
 		msg := []byte("ping")
 		srvConn, cliConn := net.Pipe()
-		defer srvConn.Close()
-		defer cliConn.Close()
+		defer func() { _ = srvConn.Close() }()
+		defer func() { _ = cliConn.Close() }()
 		srv := &http.Server{
 			Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				data, err := io.ReadAll(r.Body)
@@ -280,7 +280,7 @@ func TestDownloadTimeout(t *testing.T) {
 			}),
 		}
 		go srv.Serve(&oneConnListener{conn: srvConn, addr: srvConn.LocalAddr()}) //nolint:errcheck
-		defer srv.Close()
+		defer func() { _ = srv.Close() }()
 		transport := &http.Transport{
 			DialContext: func(_ context.Context, _, _ string) (net.Conn, error) {
 				return cliConn, nil

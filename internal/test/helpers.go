@@ -148,7 +148,7 @@ func extractTar(t testing.TB, rd io.Reader, outputDir string) {
 		switch hdr.Typeflag {
 		case tar.TypeDir:
 			OK(t, os.MkdirAll(target, mode))
-		case tar.TypeReg, tar.TypeRegA:
+		case tar.TypeReg, 0: // 0 is legacy TypeRegA
 			OK(t, os.MkdirAll(filepath.Dir(target), 0755))
 			f, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, mode)
 			OK(t, err)
@@ -220,13 +220,13 @@ func CopyDir(t testing.TB, src, dst string) {
 		if err != nil {
 			return err
 		}
-		defer in.Close()
+		defer func() { _ = in.Close() }()
 
 		out, err := os.OpenFile(target, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, info.Mode())
 		if err != nil {
 			return err
 		}
-		defer out.Close()
+		defer func() { _ = out.Close() }()
 
 		_, err = io.Copy(out, in)
 		return err

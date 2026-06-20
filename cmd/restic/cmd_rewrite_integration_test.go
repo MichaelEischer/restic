@@ -245,7 +245,7 @@ func TestRewrite(t *testing.T) {
 			IncludePatternOptions: filter.IncludePatternOptions{Includes: []string{"*.txt"}},
 		}, ".txt", 2, 2},
 		{"IncludeAbsolute", RewriteOptions{
-			Forget: true,
+			Forget:                true,
 			IncludePatternOptions: filter.IncludePatternOptions{Includes: []string{"/testdata/0/for_cmd_ls"}},
 		}, "/testdata/0", 5, 3},
 	} {
