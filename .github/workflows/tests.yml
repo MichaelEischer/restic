@@ -150,7 +150,7 @@ jobs:
         env:
           RESTIC_TEST_FUSE: ${{ matrix.test_fuse }}
         run: |
-          go test -cover ${{matrix.test_opts}} ./...
+          go test -v -cover ${{matrix.test_opts}} ./...
 
       - name: Test cloud backends
         env:
