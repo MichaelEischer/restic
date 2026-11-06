@@ -17,6 +17,8 @@ directly relating to the development of the software itself.
 
 Thanks for understanding, and for contributing to the project!
 
+When using AI tools, read the [AI policy](https://github.com/restic/restic/blob/master/AI_POLICY.md) first.
+
 -->
 
 
@@ -47,6 +49,10 @@ This section should include at least:
 
 See https://github.com/restic/restic/blob/master/CONTRIBUTING.md#reporting-bugs
 for ways to collect debug information if necessary.
+-->
+
+<!--
+AI Usage: name AI tools used (name and purpose), if any.
 -->
 
 
