@@ -19,6 +19,8 @@ the software itself.
 
 Thanks for understanding, and for contributing to the project!
 
+When using AI tools, read the [AI policy](https://github.com/restic/restic/blob/master/AI_POLICY.md) first.
+
 -->
 
 
@@ -36,6 +38,8 @@ What should restic do differently? Which functionality do you think we should ad
 
 <!--
 Please describe the feature you'd like us to add here.
+
+AI Usage: name AI tools used (name and purpose), if any.
 -->
 
 

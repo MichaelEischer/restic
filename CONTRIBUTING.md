@@ -14,6 +14,8 @@ pull request in this case.
 Contributions are welcome in general, but expect long review times due to
 a general overload of the maintainers.
 
+AI tools usage **must** adhere to the guidelines in the [AI Policy](AI_POLICY.md).
+
 The restic project uses the GitHub infrastructure (see the
 [project page](https://github.com/restic/restic)) for all related discussions
 as well as the [forum](https://forum.restic.net/) and the `#restic` channel

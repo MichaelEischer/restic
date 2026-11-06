@@ -9,6 +9,8 @@ What does this PR change? What problem does it solve?
 
 <!--
 Describe the changes and their purpose here in as much detail as needed.
+
+AI Usage: name AI tools used (name and purpose), if any.
 -->
 
 Was the change previously discussed in an issue or on the forum?
@@ -31,6 +33,7 @@ check the last box. Enable a checkbox by replacing [ ] with [x].
 
 Please always follow these steps:
 - Read the [contribution guidelines](https://github.com/restic/restic/blob/master/CONTRIBUTING.md#providing-patches).
+- Check the [AI policy](https://github.com/restic/restic/blob/master/AI_POLICY.md).
 - Enable [maintainer edits](https://help.github.com/en/github/collaborating-with-issues-and-pull-requests/allowing-changes-to-a-pull-request-branch-created-from-a-fork).
 - Run `gofmt -w **/*.go` on the code in all commits. Use `golangci-lint run` to lint the code. The CI pipeline also runs those checks.
 - Format all commit messages in the same style as [the other commits in the repository](https://github.com/restic/restic/blob/master/CONTRIBUTING.md#git-commits).
