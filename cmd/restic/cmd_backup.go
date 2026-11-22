@@ -646,7 +646,7 @@ func runBackup(ctx context.Context, opts BackupOptions, gopts global.Options, te
 		sc.Result = progressReporter.ReportTotal
 
 		if !gopts.JSON {
-			printer.V("start scan on %v", targets)
+			printer.V("start scan on %v", ui.QuoteSlice(targets))
 		}
 		wg.Go(func() error { return sc.Scan(cancelCtx, targets) })
 	}
@@ -692,7 +692,7 @@ func runBackup(ctx context.Context, opts BackupOptions, gopts global.Options, te
 	}
 
 	if !gopts.JSON {
-		printer.V("start backup on %v", targets)
+		printer.V("start backup on %v", ui.QuoteSlice(targets))
 	}
 	_, id, summary, err := arch.Snapshot(ctx, targets, snapshotOpts)
 
