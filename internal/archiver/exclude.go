@@ -242,7 +242,7 @@ func (m deviceMap) IsAllowed(item string, deviceID uint64, fs fs.FS) (bool, erro
 		return true, nil
 	}
 
-	return false, fmt.Errorf("item %v (device ID %v) not found, deviceMap: %v", item, deviceID, m)
+	return false, fmt.Errorf("item %q (device ID %v) not found, deviceMap: %v", item, deviceID, m)
 }
 
 // RejectByDevice returns a RejectFunc that rejects files which are on a

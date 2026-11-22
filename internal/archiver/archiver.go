@@ -780,7 +780,7 @@ func (arch *Archiver) dirPathToNode(snPath, target string) (node *data.Node, err
 		return nil, err
 	}
 	if node.Type != data.NodeTypeDir {
-		return nil, errors.Errorf("path is not a directory: %v", target)
+		return nil, errors.Errorf("path is not a directory: %q", target)
 	}
 	return node, err
 }
