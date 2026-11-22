@@ -1,0 +1,7 @@
+Bugfix: Prevent special characters in file names from garbling output
+
+When processing paths that contains special characters, previously
+those could in certain cases garble the terminal output. This has
+been fixed by adding quoting for such cases.
+
+https://github.com/restic/restic/pull/22216
